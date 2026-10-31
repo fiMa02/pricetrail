@@ -48,7 +48,6 @@ const PCS_FIRST = new Set(['Товари для дому', 'Товари для 
 const qtyNum = (s) => (s[0] === '(' ? s.slice(1, -1).split('+').reduce((a, b) => a + +b, 0) : parseFloat(s.replace(',', '.')));
 
 function parseWeight(name) {
-  if (name.includes('№')) return null; // таблетки, вітаміни
   let m = name.match(QTY_MULTI);
   if (m) {
     const [unit, k] = QTY_UNIT[m[3].toLowerCase()];
@@ -83,6 +82,8 @@ function parsePieces(name) {
 // { price, unit } — ціна за 1 кг / л / шт; null, якщо кількість невідома або це й так ціна за одиницю.
 function perUnit(p) {
   if (p.unit === 'кг') return null; // вагові товари вже мають ціну за кг
+  // Таблетки, вітаміни: «0,5 г №60» — вага однієї таблетки, а не вміст упаковки.
+  if (p.category === 'Медикаменти') return null;
   const g = p.group || '';
   // Набори — лише за штуку; у «штучних» розділах навіть «1 шт» означає, що вага там — не вміст.
   const pcsOnly = PCS_ONLY.has(g) || /^наб[іi]р/i.test(p.name) || (PCS_FIRST.has(g) && QTY_PCS.test(p.name));
