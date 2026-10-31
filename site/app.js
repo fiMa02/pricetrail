@@ -543,6 +543,7 @@ if (filters.sort === 'per-asc') filters.sort = 'per-kg'; // колишнє «Д�
 // Колишні сортування «Спершу завищені/реальні акції»: завищені тепер — фільтр.
 if (filters.sort === 'inflated') filters.inflated = true;
 if (filters.sort === 'inflated' || filters.sort === 'real') filters.sort = 'discount';
+if (filters.sort === 'changed') filters.sort = 'name'; // прибране «Нещодавно змінені»
 
 function applyFilters() {
   try {
@@ -627,7 +628,6 @@ function filtered() {
     'price-asc': (a, b) => a.price - b.price,
     'price-desc': (a, b) => b.price - a.price,
     discount: (a, b) => discount(b) - discount(a),
-    changed: (a, b) => (b.changed || '').localeCompare(a.changed || ''),
     ...Object.fromEntries(Object.entries(PER_SORT).map(([k, u]) => [k, perSorter(u)])),
   };
   // Товари, яких у вибраному місті немає (ціни з іншого міста), сортуються разом з усіма.
