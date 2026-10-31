@@ -314,6 +314,8 @@ select {
 .tag--up { color: var(--sale); background: var(--sale-soft); }
 .tag--down { color: var(--good); background: var(--good-soft); }
 .tag--warn { color: var(--warn); background: var(--warn-soft); }
+/* Довга мітка переноситься між частинами, а не обрізається краєм картки. */
+.tag--wrap { flex-wrap: wrap; row-gap: 2px; max-width: 100%; line-height: 1.15; border-radius: 10px; }
 .more { display: block; margin: 20px auto; }
 
 /* Серце на картці */

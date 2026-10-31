@@ -779,7 +779,7 @@ function renderToday(tab) {
           // У «Дорожче, ніж до акції» «було» — це ціна до знижки, з якою й порівнюємо.
           cur[0] === 'saleUp' ? r.c.fromOld : r.c && r.c.to !== r.c.from && cur[0] !== 'sale' ? r.c.from : undefined,
           cur[0] === 'saleUp'
-            ? `<span class="tag tag--warn" title="Під час акції: ${fmtPrice(r.c.from)} грн замість ${fmtPrice(r.c.fromOld)} грн; тепер ${fmtPrice(r.c.to)} грн">⇧ +${-pct(r.c.to, r.c.fromOld) || '<1'}% до ціни до акції</span>`
+            ? `<span class="tag tag--warn tag--wrap" title="Під час акції: ${fmtPrice(r.c.from)} грн замість ${fmtPrice(r.c.fromOld)} грн; тепер ${fmtPrice(r.c.to)} грн"><span>⇧ Була акція −${pct(r.c.from, r.c.fromOld)}%</span> <span>${fmtPrice(r.c.from)} грн</span></span>`
             : r.kind === 'saleEnd' && (cur[0] === 'saleEnd' || cur[0] === 'saleKept')
             ? `<span class="tag tag--warn" title="Акційна ціна була ${fmtPrice(r.c.from)} грн замість ${fmtPrice(r.c.fromOld)} грн${r.c.to === r.c.from ? '; після акції ціна не змінилась' : ''}">⌛ ${
                 r.c.to === r.c.from ? `акція −${pct(r.c.from, r.c.fromOld)}% скінчилась` : `була акція −${pct(r.c.from, r.c.fromOld)}%`
