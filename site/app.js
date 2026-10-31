@@ -629,9 +629,8 @@ function filtered() {
     changed: (a, b) => (b.changed || '').localeCompare(a.changed || ''),
     ...Object.fromEntries(Object.entries(PER_SORT).map(([k, u]) => [k, perSorter(u)])),
   };
-  if (sorters[filters.sort]) list = [...list].sort(sorters[filters.sort]);
-  // Товари, яких у вибраному місті немає (ціни з іншого міста), — наприкінці, у тому самому порядку.
-  return [...list.filter((p) => !p.from), ...list.filter((p) => p.from)];
+  // Товари, яких у вибраному місті немає (ціни з іншого міста), сортуються разом з усіма.
+  return sorters[filters.sort] ? [...list].sort(sorters[filters.sort]) : list;
 }
 
 // ---------- Список ----------
