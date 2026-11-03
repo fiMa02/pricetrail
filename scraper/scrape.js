@@ -76,6 +76,32 @@ function derive(p, hist) {
   p.prev = prev ? prev[1] : null;
   const regular = p.oldPrice ? hist.findLast((h) => h[1] != null && h[2] == null) : null;
   p.regular = regular ? regular[1] : null;
+  p.lowFrom = lowFrom(hist);
+  p.min30 = p.oldPrice ? minBeforeSale(hist) : null;
+}
+
+// З якої дати поточна ціна найнижча: відтоді ціна не опускалась нижче, а вищою за цей час була.
+// Інакше (ціна не змінювалась чи зараз не найнижча) — null.
+function lowFrom(hist) {
+  const priced = hist.filter((h) => h[1] != null);
+  const cur = priced.at(-1)?.[1];
+  if (cur == null) return null;
+  let i = priced.length - 1;
+  while (i > 0 && priced[i - 1][1] >= cur) i--;
+  return priced.slice(i).some((h) => h[1] > cur) ? priced[i][0] : null;
+}
+
+// Найнижча ціна за 30 днів перед початком поточної акції (як вимагає закон про знижки в ЄС) —
+// для «чесної знижки». Записи історії — сходинки: ціна діє до дати наступного запису.
+function minBeforeSale(hist) {
+  let s = hist.length - 1;
+  while (s > 0 && (hist[s - 1][2] != null || hist[s - 1][1] == null)) s--;
+  const from = Date.parse(hist[s][0]) - 30 * 86400000;
+  let min = null;
+  for (let j = 0; j < s; j++) {
+    if (hist[j][1] != null && Date.parse(hist[j + 1][0]) > from) min = min == null ? hist[j][1] : Math.min(min, hist[j][1]);
+  }
+  return min;
 }
 
 const args = process.argv.slice(2);

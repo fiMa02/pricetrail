@@ -27,6 +27,16 @@ const unmix = (w) => {
 };
 const norm = (s) => s.toLowerCase().replace(/ё/g, 'е').replace(/[’'`ʼ]/g, '').replace(/[^\s]+/g, unmix);
 const discount = (p) => (p.oldPrice ? 1 - p.price / p.oldPrice : 0);
+// «Найнижча ціна за N днів»: скільки днів ціна не опускалась нижче поточної (lowFrom рахує парсер); показуємо від тижня.
+const LOW_MIN_DAYS = 7;
+const lowDays = (p) => (p.lowFrom ? Math.round((parseDate(state.meta.updated) - parseDate(p.lowFrom)) / DAY) : 0);
+// Чесна знижка — відносно найнижчої ціни за 30 днів до акції (min30), а не «ціни до знижки».
+const honestPct = (p) => (p.oldPrice && p.min30 ? pct(p.price, p.min30) : null);
+const dishonest = (p) => honestPct(p) != null && honestPct(p) < Math.round(discount(p) * 100) - 2;
+const lowTag = (p) =>
+  lowDays(p) >= LOW_MIN_DAYS
+    ? `<span class="tag tag--low" title="Нижчої ціни не було з ${fmtDate(parseDate(p.lowFrom))}">★ найнижча за ${lowDays(p)} дн.</span>`
+    : '';
 const inflation = (p) => (isInflated(p.oldPrice, p.regular) ? p.oldPrice / p.regular - 1 : 0);
 
 // ---------- Ціна за кг / л / шт ----------
@@ -531,13 +541,13 @@ function bindFavTarget(p) {
 
 // ---------- Фільтри ----------
 
-const filters = { q: '', group: '', cat: '', sort: 'name', sale: false, card: false, inflated: false, local: false };
+const filters = { q: '', group: '', cat: '', sort: 'name', sale: false, card: false, inflated: false, local: false, low: false };
 try {
   Object.assign(filters, JSON.parse(sessionStorage.getItem('filters') || '{}'));
 } catch {}
 // Параметри з адреси (?q=молоко&sale=1&inflated=1) мають пріоритет — щоб можна було ділитися посиланнями.
 for (const [k, v] of new URLSearchParams(location.search)) {
-  if (k === 'sale' || k === 'card' || k === 'inflated' || k === 'local') filters[k] = v === '1';
+  if (k === 'sale' || k === 'card' || k === 'inflated' || k === 'local' || k === 'low') filters[k] = v === '1';
   else if (k in filters) filters[k] = v;
 }
 if (filters.sort === 'per-asc') filters.sort = 'per-kg'; // колишнє «Дешевші за кг/л»
@@ -565,6 +575,7 @@ function bindFilters() {
   $('#card').checked = filters.card;
   $('#inflated').checked = filters.inflated;
   $('#local').checked = filters.local;
+  $('#low').checked = filters.low;
   let t;
   const update = () => {
     filters.q = $('#q').value;
@@ -574,6 +585,7 @@ function bindFilters() {
     filters.card = $('#card').checked;
     filters.inflated = $('#inflated').checked;
     filters.local = $('#local').checked;
+    filters.low = $('#low').checked;
     applyFilters();
   };
   // Серце на картці (вона — посилання, тож не даємо перейти) і кнопка на сторінці товару.
@@ -603,7 +615,7 @@ function bindFilters() {
     clearTimeout(t);
     t = setTimeout(update, 150);
   });
-  for (const id of ['#cat', '#sort', '#sale', '#card', '#inflated', '#local']) $(id).addEventListener('change', update);
+  for (const id of ['#cat', '#sort', '#sale', '#card', '#inflated', '#local', '#low']) $(id).addEventListener('change', update);
 }
 
 // Ціна за 1 кг / л / шт (вагові товари — за їхньою ціною); null, якщо для цієї одиниці невідома.
@@ -626,6 +638,7 @@ function filtered() {
       (!filters.card || p.cardPrice) &&
       (!filters.inflated || inflation(p) > 0) &&
       (!filters.local || !p.from) &&
+      (!filters.low || lowDays(p) >= LOW_MIN_DAYS) &&
       words.every((w) => p._q.includes(w)),
   );
   const sorters = {
@@ -646,9 +659,12 @@ const CARD_ICON = '<svg class="atbcard__icon" viewBox="0 0 24 24" aria-hidden="t
 // extra — додаткова позначка (HTML) на початку рядка позначок.
 function card(p, from, extra = '') {
   const sale = p.oldPrice ? `<span class="badge">−${Math.round(discount(p) * 100)}%</span>` : '';
-  let flags = '';
+  let flags = lowTag(p);
   if (isInflated(p.oldPrice, p.regular)) {
     flags += `<span class="tag tag--warn" title="Перед акцією було ${fmtPrice(p.regular)} грн — ціну до знижки завищено">⚠ до акції ${fmtPrice(p.regular)}</span>`;
+  } else if (dishonest(p)) {
+    const h = honestPct(p);
+    flags += `<span class="tag tag--warn" title="Найнижча ціна за 30 днів до акції — ${fmtPrice(p.min30)} грн">${h > 0 ? `⚠ чесна знижка −${h}%` : '⚠ не дешевше, ніж до акції'}</span>`;
   }
   if (from != null && Math.abs(p.price - from) > 0.004) {
     const up = p.price > from;
@@ -816,6 +832,7 @@ function renderGroups() {
     filters.card && '💳 З карткою',
     filters.inflated && '⚠ Завищені',
     filters.local && '📍 Тільки у вибраному місті',
+    filters.low && '★ Найнижча ціна',
   ].filter(Boolean);
   $('#fActive').innerHTML = active.map((a) => `<span>${esc(a)}</span>`).join('');
   $('#fReset').hidden = !active.length;
@@ -874,8 +891,8 @@ function initFilterPanel() {
     applyFilters();
   });
   $('#fReset').onclick = () => {
-    Object.assign(filters, { group: '', cat: '', sale: false, card: false, inflated: false, local: false });
-    for (const id of ['#sale', '#card', '#inflated', '#local']) $(id).checked = false;
+    Object.assign(filters, { group: '', cat: '', sale: false, card: false, inflated: false, local: false, low: false });
+    for (const id of ['#sale', '#card', '#inflated', '#local', '#low']) $(id).checked = false;
     fillCategories();
     applyFilters();
   };
@@ -1002,6 +1019,16 @@ async function cityProduct(slug, id) {
 }
 
 let productSeq = 0;
+// Чесна знижка на сторінці товару. Якщо «ціну до знижки» вже завищено, а мінімум за 30 днів — та сама
+// звичайна ціна перед акцією, рамка нічого не додала б до попередження про завищену акцію.
+function honestBox(p) {
+  const h = honestPct(p);
+  if (h == null || (isInflated(p.oldPrice, p.regular) && p.min30 >= p.regular * 0.995)) return '';
+  const ok = !dishonest(p);
+  return `<p class="${ok ? 'ok-box' : 'warn-box'}"><b>${ok ? '✓' : '⚠'}</b><span>Найнижча ціна за 30 днів до акції — <b>${fmtPrice(p.min30)} грн</b>.
+    ${ok ? `Знижка чесна: <b>−${h}%</b>.` : `${realDiscount(p.price, p.min30)}, а не ${Math.round(discount(p) * 100)}%.`}</span></p>`;
+}
+
 async function renderProduct(id, slug) {
   document.querySelector('.top').classList.add('is-product');
   const seq = ++productSeq;
@@ -1039,9 +1066,11 @@ async function renderProduct(id, slug) {
           <span class="price ${p.oldPrice ? 'price--sale' : ''}">${fmtPrice(p.price)} <small>грн/${esc(p.unit)}</small></span>
           ${p.oldPrice ? `<span class="old">${fmtPrice(p.oldPrice)}</span>` : ''}
           ${labelsHtml(p)}
+          ${lowTag(p)}
           ${p._per ? `<span class="product__per">${fmtPrice(p._per.price)} грн за 1 ${p._per.unit}</span>` : ''}
         </div>
         ${p.cardPrice ? `<div class="atbcard atbcard--big">${CARD_ICON}<b>${fmtPrice(p.cardPrice)} грн</b> при оплаті карткою АТБ <span class="note">(−${pct(p.cardPrice, p.price)}%)</span></div>` : ''}
+        ${honestBox(p)}
         <div id="warn"></div>
         <div class="product__actions"><span class="fav-actions">${favActions(p)}</span><a class="btn btn--primary" href="https://www.atbmarket.com${esc(p.url)}" target="_blank" rel="noopener">Відкрити на atbmarket.com ↗</a></div>
       </div>
