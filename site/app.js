@@ -1061,29 +1061,45 @@ const loadLevels = () =>
     }));
 const fmtPct = (v) => `${v > 0 ? '+' : v < 0 ? '−' : ''}${String(Math.abs(v).toFixed(1)).replace('.', ',')}%`;
 
+// Історія знімків: data/levels/index.json — дати, data/levels/<дата>.json — знімок того тижня.
+let levelWeeks;
+const loadWeeks = () =>
+  (levelWeeks ||= fetch('data/levels/index.json')
+    .then((r) => (r.ok ? r.json() : []))
+    .catch(() => []));
+const weekCache = new Map();
+const loadWeek = (date) => {
+  if (!weekCache.has(date)) weekCache.set(date, fetch(`data/levels/${date}.json`).then((r) => (r.ok ? r.json() : null)).catch(() => null));
+  return weekCache.get(date);
+};
+
 async function renderHomeMap(el) {
-  const [lv, map] = await Promise.all([loadLevels(), loadMap().catch(() => null)]);
+  const [lv0, map, weeks] = await Promise.all([loadLevels(), loadMap().catch(() => null), loadWeeks()]);
   if (!el.isConnected) return;
-  if (!map || !lv) return el.remove();
+  if (!map || !lv0) return el.remove();
+  // Дані тижня (перераховуються, коли повзунком вибирають інший тиждень).
   // Кожен пункт — і місто (c), і його значення (r.v); наші щоденні міста мають slug.
-  const list = lv.cities.filter((x) => x.lat != null);
-  const vals = list.map((x) => x.v);
-  const lo = Math.min(...vals);
-  const hi = Math.max(...vals);
-  // Шкала симетрична відносно середнього: зелений — дешевше, сірий — як у середньому, червоний — дорожче.
-  const span = Math.max(-lo, hi, 0.5);
-  const tone = (v) =>
-    v <= 0
-      ? `color-mix(in oklab, var(--good) ${Math.round(Math.min(1, -v / span) * 100)}%, var(--map-mid))`
-      : `color-mix(in oklab, var(--sale) ${Math.round(Math.min(1, v / span) * 100)}%, var(--map-mid))`;
-  const pts = list.map((x) => ({ c: x, r: x, xy: mapXY(map, x) }));
-  const here = list.find((x) => x.slug === state.city.slug);
-  const sums = new Map();
-  for (const { r, xy } of pts) {
-    const i = regionAt(map, xy);
-    const s = sums.get(i) || [0, 0];
-    sums.set(i, [s[0] + r.v, s[1] + 1]);
-  }
+  let lv, list, span, tone, pts, here, sums;
+  const setData = (data) => {
+    lv = data;
+    list = lv.cities.filter((x) => x.lat != null);
+    const vals = list.map((x) => x.v);
+    // Шкала симетрична відносно середнього: зелений — дешевше, сірий — як у середньому, червоний — дорожче.
+    span = Math.max(-Math.min(...vals), Math.max(...vals), 0.5);
+    tone = (v) =>
+      v <= 0
+        ? `color-mix(in oklab, var(--good) ${Math.round(Math.min(1, -v / span) * 100)}%, var(--map-mid))`
+        : `color-mix(in oklab, var(--sale) ${Math.round(Math.min(1, v / span) * 100)}%, var(--map-mid))`;
+    pts = list.map((x) => ({ c: x, r: x, xy: mapXY(map, x) }));
+    here = list.find((x) => x.slug === state.city.slug);
+    sums = new Map();
+    for (const { r, xy } of pts) {
+      const i = regionAt(map, xy);
+      const s = sums.get(i) || [0, 0];
+      sums.set(i, [s[0] + r.v, s[1] + 1]);
+    }
+  };
+  setData(lv0);
   // Наближення: k — масштаб, tx/ty — зсув (у координатах мапи). Області масштабуються,
   // а точки й підписи малюються заново на нових місцях і лишаються сталого розміру на екрані.
   const view = { k: 1, tx: 0, ty: 0 };
@@ -1132,21 +1148,32 @@ async function renderHomeMap(el) {
       })
       .join('') + oblastHtml; // назви областей — поверх точок
   };
-  const sorted = [...list].sort((a, b) => a.v - b.v);
-  const [cheap, dear] = [sorted[0], sorted.at(-1)];
   const verdict = (v) => (Math.abs(v) < 0.5 ? 'приблизно як у середньому' : `на ${fmtPct(v).slice(1)} ${v < 0 ? 'дешевше' : 'дорожче'} за середнє`);
-  el.innerHTML = `<div class="panel__head"><h2>Рівень цін у містах</h2></div>
-    <p class="compare__summary">Найдешевше — ${esc(cheap.name)} (${fmtPct(cheap.v)}), найдорожче — ${esc(dear.name)} (${fmtPct(dear.v)}).${
+  const summaryHtml = () => {
+    const sorted = [...list].sort((a, b) => a.v - b.v);
+    const [cheap, dear] = [sorted[0], sorted.at(-1)];
+    return `Найдешевше — ${esc(cheap.name)} (${fmtPct(cheap.v)}), найдорожче — ${esc(dear.name)} (${fmtPct(dear.v)}).${
       here ? ` У місті ${esc(state.city.name)} — ${verdict(here.v)}.` : ''
-    }</p>
+    }`;
+  };
+  const noteHtml = () =>
+    `Відсоток — на скільки поточні ціни (з акціями) у місті вищі чи нижчі за середні по ${list.length} ${plural(list.length, 'місту', 'містах', 'містах')}, за спільними товарами; по одному магазину в кожному місті.${
+      lv.date ? ` Знімок за ${fmtDate(parseDate(lv.date))}: молочні продукти, напої, хліб, ковбаси, кава й чай, побутова хімія.` : ''
+    } Колір області — середнє її міст.`;
+  // Повзунок тижнів — коли знімків щонайменше два; типово — останній.
+  const weekAt = Math.max(0, weeks.indexOf(lv0.date));
+  const weeksHtml =
+    weeks.length > 1
+      ? `<div class="umap__weeks">
+          <input type="range" min="0" max="${weeks.length - 1}" step="1" value="${weekAt}" aria-label="Тиждень">
+          <span class="umap__week"></span>
+        </div>`
+      : '';
+  el.innerHTML = `<div class="panel__head"><h2>Рівень цін у містах</h2></div>
+    <p class="compare__summary">${summaryHtml()}</p>
     <div class="umap umap--zoom">
       <svg viewBox="0 0 ${map.w} ${map.h}" role="img" aria-label="Мапа: різниця цін між містами">
-        <g class="umap__regions">${map.regions
-          .map((d, i) => {
-            const s = sums.get(i);
-            return `<path d="${d}"${s ? ` style="--rtone:${tone(s[0] / s[1])}"` : ''}/>`;
-          })
-          .join('')}</g>
+        <g class="umap__regions">${map.regions.map((d) => `<path d="${d}"/>`).join('')}</g>
         <g class="umap__marks"></g>
       </svg>
       <div class="umap__zoom">
@@ -1156,13 +1183,12 @@ async function renderHomeMap(el) {
       </div>
       <div class="tip umap__tip" hidden></div>
     </div>
+    ${weeksHtml}
     <div class="umap__legend">
-      <span class="umap__scale"><b>${fmtPct(-span)}</b><i aria-hidden="true"></i><b>${fmtPct(span)}</b></span>
+      <span class="umap__scale"><b class="umap__lo"></b><i aria-hidden="true"></i><b class="umap__hi"></b></span>
       <span><i class="lg-here" aria-hidden="true"></i>ваше місто</span>
     </div>
-    <p class="note">Відсоток — на скільки поточні ціни (з акціями) у місті вищі чи нижчі за середні по ${list.length} ${plural(list.length, 'місту', 'містах', 'містах')}, за спільними товарами; по одному магазину в кожному місті.${
-      lv.date ? ` Знімок за ${fmtDate(parseDate(lv.date))}: молочні продукти, напої, хліб, ковбаси, кава й чай, побутова хімія.` : ''
-    } Колір області — середнє її міст.</p>`;
+    <p class="note umap__note"></p>`;
   const svg = el.querySelector('svg');
   const tip = el.querySelector('.umap__tip');
   const regionsG = svg.querySelector('.umap__regions');
@@ -1269,7 +1295,32 @@ async function renderHomeMap(el) {
   svg.addEventListener('pointerup', up);
   svg.addEventListener('pointercancel', up);
   addEventListener('resize', redraw);
-  draw();
+  // Кольори областей, підсумок, шкала й примітка — під дані вибраного тижня.
+  const paint = () => {
+    regionsG.querySelectorAll('path').forEach((path, i) => {
+      const s = sums.get(i);
+      path.style.setProperty('--rtone', s ? tone(s[0] / s[1]) : '');
+    });
+    el.querySelector('.compare__summary').innerHTML = summaryHtml();
+    el.querySelector('.umap__lo').textContent = fmtPct(-span);
+    el.querySelector('.umap__hi').textContent = fmtPct(span);
+    el.querySelector('.umap__note').innerHTML = noteHtml();
+    const week = el.querySelector('.umap__week');
+    if (week) week.textContent = `тиждень ${fmtDate(parseDate(lv.date))}${lv.date === weeks.at(-1) ? ' (останній)' : ''}`;
+    tip.hidden = true;
+    draw();
+  };
+  const slider = el.querySelector('.umap__weeks input');
+  if (slider) {
+    slider.addEventListener('input', async () => {
+      const date = weeks[slider.value];
+      const data = date === lv0.date ? lv0 : await loadWeek(date);
+      if (!data || weeks[slider.value] !== date || !el.isConnected) return;
+      setData(data);
+      paint();
+    });
+  }
+  paint();
   const show = (g) => {
     const r = list[g.dataset.i];
     tip.innerHTML = `<b>${esc(r.name)}</b>${r === here ? ' (ваше місто)' : ''}<br>${verdict(r.v)}`;

@@ -9,7 +9,8 @@
 //
 // scraper/coords.json: { "Назва міста як на сайті АТБ": { lat, lon } } — координати пунктів, яких немає в cities.js
 // (з GeoNames). Нові міста АТБ без координат пропускаються — скрипт виписує їх, щоб додати вручну.
-// Сирі ціни — у .scratch/snapshot/<id міста АТБ>.json; результат — site/data/levels.json:
+// Сирі ціни — у .scratch/snapshot/<id міста АТБ>.json; результат — site/data/levels.json (останній знімок)
+// і site/data/levels/<дата>.json + levels/index.json (історія для повзунка тижнів під мапою):
 //   { date, cities: [{ name, slug?, lat, lon, v, n }] } — v: на скільки % дорожче за середнє, n: товарів у вибірці.
 import * as cheerio from 'cheerio';
 import fs from 'node:fs/promises';
@@ -21,6 +22,7 @@ import { BASE, curl, sleep, DELAY_MS, parseCityIds, getCityStores, scrapeCategor
 const RAW_DIR = path.resolve('.scratch/snapshot');
 const COORDS = path.resolve('scraper/coords.json');
 const OUT = path.resolve('site/data/levels.json');
+const HISTORY_DIR = path.resolve('site/data/levels');
 const PARALLEL = 5;
 // Розділи вибірки й відповідні їм групи в products.json наших міст.
 const SAMPLE = {
@@ -124,6 +126,11 @@ async function build() {
     .map((c, i) => level[i] != null && { name: c.name, ...(c.slug ? { slug: c.slug } : {}), lat: c.lat, lon: c.lon, v: Math.round((Math.exp(level[i] - mean) - 1) * 1000) / 10, n: logs[i].size })
     .filter(Boolean);
   await fs.writeFile(OUT, JSON.stringify({ date, cities: out }));
+  // Історія для повзунка під мапою: знімок тижня (повторний збір того ж дня перезаписує його) і список дат.
+  await fs.mkdir(HISTORY_DIR, { recursive: true });
+  await fs.writeFile(path.join(HISTORY_DIR, `${date}.json`), JSON.stringify({ date, cities: out }));
+  const dates = (await fs.readdir(HISTORY_DIR)).filter((f) => /^\d{4}-\d\d-\d\d\.json$/.test(f)).map((f) => f.slice(0, 10)).sort();
+  await fs.writeFile(path.join(HISTORY_DIR, 'index.json'), JSON.stringify(dates));
   console.log(`levels.json: ${out.length} міст, дата ${date}`);
 }
 

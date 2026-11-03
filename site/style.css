@@ -719,3 +719,6 @@ th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--lin
 .umap__zoom button { width: 34px; height: 34px; padding: 0; justify-content: center; font-size: 18px; border-radius: 10px; background: var(--surface); }
 .umap__zoom button[hidden] { display: none; }
 .umap__oblast { font-size: 11.5px; font-weight: 600; letter-spacing: .02em; fill: var(--ink-2); opacity: .75; paint-order: stroke; stroke: var(--surface); stroke-width: 3px; stroke-opacity: .6; pointer-events: none; }
+.umap__weeks { max-width: 880px; margin: 6px auto 10px; display: flex; align-items: center; gap: 12px; }
+.umap__weeks input { flex: 1; accent-color: var(--accent); }
+.umap__week { font-size: 13px; color: var(--ink-2); font-variant-numeric: tabular-nums; white-space: nowrap; }
