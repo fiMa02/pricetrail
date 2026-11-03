@@ -1079,13 +1079,16 @@ async function renderHomeMap(el) {
   if (!map || !lv0) return el.remove();
   // Дані тижня (перераховуються, коли повзунком вибирають інший тиждень).
   // Кожен пункт — і місто (c), і його значення (r.v); наші щоденні міста мають slug.
-  let lv, list, span, tone, pts, here, sums;
+  let lv, list, lo, hi, span, tone, pts, here, sums;
   const setData = (data) => {
     lv = data;
     list = lv.cities.filter((x) => x.lat != null);
     const vals = list.map((x) => x.v);
-    // Шкала симетрична відносно середнього: зелений — дешевше, сірий — як у середньому, червоний — дорожче.
-    span = Math.max(-Math.min(...vals), Math.max(...vals), 0.5);
+    lo = Math.min(...vals);
+    hi = Math.max(...vals);
+    // Насиченість кольору — однакова для однакового відхилення в обидва боки (зелений — дешевше, сірий — як
+    // у середньому, червоний — дорожче), тому span — найбільше відхилення; шкала ж показує справжні мінімум і максимум.
+    span = Math.max(-lo, hi, 0.5);
     tone = (v) =>
       v <= 0
         ? `color-mix(in oklab, var(--good) ${Math.round(Math.min(1, -v / span) * 100)}%, var(--map-mid))`
@@ -1302,8 +1305,11 @@ async function renderHomeMap(el) {
       path.style.setProperty('--rtone', s ? tone(s[0] / s[1]) : '');
     });
     el.querySelector('.compare__summary').innerHTML = summaryHtml();
-    el.querySelector('.umap__lo').textContent = fmtPct(-span);
-    el.querySelector('.umap__hi').textContent = fmtPct(span);
+    el.querySelector('.umap__lo').textContent = fmtPct(lo);
+    el.querySelector('.umap__hi').textContent = fmtPct(hi);
+    // Сірий (0%) — на своєму місці між мінімумом і максимумом.
+    const zero = hi > lo ? Math.min(100, Math.max(0, (-lo / (hi - lo)) * 100)) : 50;
+    el.querySelector('.umap__scale i').style.background = `linear-gradient(90deg, ${tone(lo)}, var(--map-mid) ${zero.toFixed(0)}%, ${tone(hi)})`;
     el.querySelector('.umap__note').innerHTML = noteHtml();
     const week = el.querySelector('.umap__week');
     if (week) week.textContent = `тиждень ${fmtDate(parseDate(lv.date))}${lv.date === weeks.at(-1) ? ' (останній)' : ''}`;
