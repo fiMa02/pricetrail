@@ -28,6 +28,8 @@ const SAMPLE = {
   '/catalog/308-pobutova-khimiya-ta-neprodovol-chi-tovari': 'Побутова хімія та непродовольчі товари',
 };
 const MIN_COMMON = 150; // пари міст з меншою кількістю спільних товарів не враховуємо
+// Пункти, які на мапі опинялись не там (однойменні села в інших областях), — не показуємо й не рахуємо.
+const EXCLUDE = new Set(['Новоолександрівка', 'Калинівка']);
 
 async function collect(coordsFile) {
   const coords = JSON.parse(await fs.readFile(coordsFile, 'utf8'));
@@ -83,7 +85,7 @@ async function build(coordsFile) {
   }
   for (const f of await fs.readdir(RAW_DIR).catch(() => [])) {
     const raw = JSON.parse(await fs.readFile(path.join(RAW_DIR, f), 'utf8'));
-    const at = coords[raw.name];
+    const at = !EXCLUDE.has(raw.name) && coords[raw.name];
     if (at) cities.push({ name: raw.name, lat: at.lat, lon: at.lon, prices: raw.prices });
   }
   // Попарні середні логарифми співвідношення цін за спільними товарами → рівень міста (вага — кількість спільних).
