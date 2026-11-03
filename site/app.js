@@ -33,6 +33,19 @@ const lowDays = (p) => (p.lowFrom ? Math.round((parseDate(state.meta.updated) - 
 // Чесна знижка — відносно найнижчої ціни за 30 днів до акції (min30), а не «ціни до знижки».
 const honestPct = (p) => (p.oldPrice && p.min30 ? pct(p.price, p.min30) : null);
 const dishonest = (p) => honestPct(p) != null && honestPct(p) < Math.round(discount(p) * 100) - 2;
+const dayMonth = (d) => `${d.slice(8, 10)}.${d.slice(5, 7)}`;
+// Позначка на картці, коли знижка менша за заявлену: мінімум був на попередній акції — «повторна акція»,
+// звичайною ціною — реальна знижка, а якщо ціна не нижча за мінімум — так і кажемо.
+function honestTag(p) {
+  const h = honestPct(p);
+  const title = `Найнижча ціна за 30 днів до акції — ${fmtPrice(p.min30)} грн${p.min30At ? ` (${fmtDate(parseDate(p.min30At))}${p.min30Sale ? ', на акції' : ''})` : ''}`;
+  const text = p.min30Sale
+    ? `<span>🔁 повторна акція:</span> <span>було ${fmtPrice(p.min30)}${p.min30At ? ` (${dayMonth(p.min30At)})` : ''}</span>`
+    : h > 0
+      ? `⚠ реальна знижка −${h}%`
+      : '⚠ не дешевше, ніж до акції';
+  return `<span class="tag tag--warn tag--wrap" title="${title}">${text}</span>`;
+}
 const lowTag = (p) =>
   lowDays(p) >= LOW_MIN_DAYS
     ? `<span class="tag tag--low" title="Нижчої ціни не було з ${fmtDate(parseDate(p.lowFrom))}">★ найнижча за ${lowDays(p)} дн.</span>`
@@ -663,8 +676,7 @@ function card(p, from, extra = '') {
   if (isInflated(p.oldPrice, p.regular)) {
     flags += `<span class="tag tag--warn" title="Перед акцією було ${fmtPrice(p.regular)} грн — ціну до знижки завищено">⚠ до акції ${fmtPrice(p.regular)}</span>`;
   } else if (dishonest(p)) {
-    const h = honestPct(p);
-    flags += `<span class="tag tag--warn" title="Найнижча ціна за 30 днів до акції — ${fmtPrice(p.min30)} грн">${h > 0 ? `⚠ чесна знижка −${h}%` : '⚠ не дешевше, ніж до акції'}</span>`;
+    flags += honestTag(p);
   }
   if (from != null && Math.abs(p.price - from) > 0.004) {
     const up = p.price > from;
@@ -1025,8 +1037,13 @@ function honestBox(p) {
   const h = honestPct(p);
   if (h == null || (isInflated(p.oldPrice, p.regular) && p.min30 >= p.regular * 0.995)) return '';
   const ok = !dishonest(p);
-  return `<p class="${ok ? 'ok-box' : 'warn-box'}"><b>${ok ? '✓' : '⚠'}</b><span>Найнижча ціна за 30 днів до акції — <b>${fmtPrice(p.min30)} грн</b>.
-    ${ok ? `Знижка чесна: <b>−${h}%</b>.` : `${realDiscount(p.price, p.min30)}, а не ${Math.round(discount(p) * 100)}%.`}</span></p>`;
+  const when = p.min30At ? ` (${fmtDate(parseDate(p.min30At))})` : '';
+  const what = ok
+    ? `Найнижча ціна за 30 днів до акції — <b>${fmtPrice(p.min30)} грн</b>${when}. Знижка чесна: <b>−${h}%</b>.`
+    : p.min30Sale
+      ? `Повторна акція: ${p.min30At ? fmtDate(parseDate(p.min30At)) : 'нещодавно'} товар уже продавався на акції за <b>${fmtPrice(p.min30)} грн</b>. ${realDiscount(p.price, p.min30)}, а не ${Math.round(discount(p) * 100)}%.`
+      : `Найнижча ціна за 30 днів до акції — <b>${fmtPrice(p.min30)} грн</b>${when}. ${realDiscount(p.price, p.min30)}, а не ${Math.round(discount(p) * 100)}%.`;
+  return `<p class="${ok ? 'ok-box' : 'warn-box'}"><b>${ok ? '✓' : p.min30Sale ? '🔁' : '⚠'}</b><span>${what}</span></p>`;
 }
 
 async function renderProduct(id, slug) {

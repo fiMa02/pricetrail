@@ -77,7 +77,10 @@ function derive(p, hist) {
   const regular = p.oldPrice ? hist.findLast((h) => h[1] != null && h[2] == null) : null;
   p.regular = regular ? regular[1] : null;
   p.lowFrom = lowFrom(hist);
-  p.min30 = p.oldPrice ? minBeforeSale(hist) : null;
+  const m = p.oldPrice ? minBeforeSale(hist) : null;
+  p.min30 = m?.price ?? null;
+  p.min30At = m?.date ?? null; // коли була ця ціна
+  p.min30Sale = m?.sale ? 1 : null; // і чи то була акція («повторна акція»)
 }
 
 // З якої дати поточна ціна найнижча: відтоді ціна не опускалась нижче, а вищою за цей час була.
@@ -93,15 +96,18 @@ function lowFrom(hist) {
 
 // Найнижча ціна за 30 днів перед початком поточної акції (як вимагає закон про знижки в ЄС) —
 // для «чесної знижки». Записи історії — сходинки: ціна діє до дати наступного запису.
+// Повертає { price, date, sale } — з однакових мінімумів пізніший, а акційний важливіший за звичайний.
 function minBeforeSale(hist) {
   let s = hist.length - 1;
   while (s > 0 && (hist[s - 1][2] != null || hist[s - 1][1] == null)) s--;
   const from = Date.parse(hist[s][0]) - 30 * 86400000;
-  let min = null;
+  let best = null;
   for (let j = 0; j < s; j++) {
-    if (hist[j][1] != null && Date.parse(hist[j + 1][0]) > from) min = min == null ? hist[j][1] : Math.min(min, hist[j][1]);
+    const [date, price, old] = hist[j];
+    if (price == null || Date.parse(hist[j + 1][0]) <= from) continue;
+    if (!best || price < best.price || (price === best.price && (old != null || !best.sale))) best = { price, date, sale: old != null };
   }
-  return min;
+  return best;
 }
 
 const args = process.argv.slice(2);
