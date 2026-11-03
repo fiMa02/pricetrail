@@ -11,6 +11,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
+import { fileURLToPath } from 'node:url';
 import { CITIES } from './cities.js';
 import { buildGroupMap, groupOf } from './groups.js';
 import { buildCompare } from './compare.js';
@@ -471,7 +472,12 @@ async function main() {
   if (!Object.keys(results).length) process.exit(1);
 }
 
-main().catch((err) => {
-  console.error(err);
-  process.exit(1);
-});
+// Для одноразових знімків (scraper/snapshot.js) — ті самі запити й розбір сторінок.
+export { BASE, curl, sleep, DELAY_MS, parseCategories, parseCityIds, getCityStores, scrapeCategory };
+
+if (process.argv[1] === fileURLToPath(import.meta.url)) {
+  main().catch((err) => {
+    console.error(err);
+    process.exit(1);
+  });
+}

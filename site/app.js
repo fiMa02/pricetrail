@@ -1045,21 +1045,29 @@ const HOME_BLOCK = 8;
 
 // Мапа на бета-головній: на скільки % у кожному місті дорожче чи дешевше за середній рівень цін по всіх містах
 // (avg у data/compare/index.json); не залежить від вибраного міста — воно лише виділене.
-let priceIndex;
-const loadIndex = () => (priceIndex ||= fetch('data/compare/index.json').then((r) => (r.ok ? r.json() : null)).catch(() => null));
+// Джерело — data/levels.json (одноразовий знімок усіх міст АТБ, scraper/snapshot.js); якщо його немає —
+// щоденний індекс наших міст (avg у data/compare/index.json).
+let priceLevels;
+const loadLevels = () =>
+  (priceLevels ||= fetch('data/levels.json')
+    .then((r) => (r.ok ? r.json() : null))
+    .catch(() => null)
+    .then(async (lv) => {
+      if (lv?.cities?.length) return lv;
+      const idx = await fetch('data/compare/index.json').then((r) => (r.ok ? r.json() : null)).catch(() => null);
+      if (!idx?.avg) return null;
+      const at = new Map(idx.cities.map((slug, i) => [slug, i]));
+      return { cities: state.cities.filter((c) => at.has(c.slug)).map((c) => ({ ...c, v: idx.avg[at.get(c.slug)] })) };
+    }));
 const fmtPct = (v) => `${v > 0 ? '+' : v < 0 ? '−' : ''}${String(Math.abs(v).toFixed(1)).replace('.', ',')}%`;
 
 async function renderHomeMap(el) {
-  const [idx, map] = await Promise.all([loadIndex(), loadMap().catch(() => null)]);
+  const [lv, map] = await Promise.all([loadLevels(), loadMap().catch(() => null)]);
   if (!el.isConnected) return;
-  if (!map || !idx?.avg) return el.remove();
-  const at = new Map(idx.cities.map((slug, i) => [slug, i]));
-  const rows = new Map();
-  for (const c of state.cities) {
-    const i = at.get(c.slug);
-    if (i != null) rows.set(c, { v: idx.avg[i] });
-  }
-  const vals = [...rows.values()].map((r) => r.v);
+  if (!map || !lv) return el.remove();
+  // Кожен пункт — і місто (c), і його значення (r.v); наші щоденні міста мають slug.
+  const list = lv.cities.filter((x) => x.lat != null);
+  const vals = list.map((x) => x.v);
   const lo = Math.min(...vals);
   const hi = Math.max(...vals);
   // Шкала симетрична відносно середнього: зелений — дешевше, сірий — як у середньому, червоний — дорожче.
@@ -1068,36 +1076,52 @@ async function renderHomeMap(el) {
     v <= 0
       ? `color-mix(in oklab, var(--good) ${Math.round(Math.min(1, -v / span) * 100)}%, var(--map-mid))`
       : `color-mix(in oklab, var(--sale) ${Math.round(Math.min(1, v / span) * 100)}%, var(--map-mid))`;
-  const pts = state.cities.filter((c) => c.lat != null).map((c) => ({ c, r: rows.get(c), xy: mapXY(map, c) }));
-  const here = rows.get(state.city);
-  const labels = placeLabels(pts, here, map, (c, r) => Math.max(c.name.length * 7.2, fmtPct(r.v).length * 9.5));
+  const pts = list.map((x) => ({ c: x, r: x, xy: mapXY(map, x) }));
+  const here = list.find((x) => x.slug === state.city.slug);
   const sums = new Map();
   for (const { r, xy } of pts) {
-    if (!r) continue;
     const i = regionAt(map, xy);
     const s = sums.get(i) || [0, 0];
     sums.set(i, [s[0] + r.v, s[1] + 1]);
   }
-  const marks = pts
-    .map(({ c, r, xy: [x, y] }) => {
-      if (!r) return '';
-      const lb = labels.get(c);
-      const text = lb
-        ? `<text class="mcity__label" x="${lb[0]}" y="${lb[1]}" text-anchor="${lb[2]}"><tspan class="mcity__name" x="${lb[0]}">${esc(c.name)}</tspan><tspan class="mcity__price" x="${lb[0]}" dy="17">${fmtPct(r.v)}</tspan></text>`
-        : '';
-      return `<g class="mcity${r === here ? ' is-here' : ''}" data-city="${c.slug}" transform="translate(${x.toFixed(1)} ${y.toFixed(1)})" style="--tone:${tone(r.v)}">
-          ${r === here ? '<circle class="mcity__ring" r="15"/>' : ''}<circle class="mcity__dot" r="9"/>${text}</g>`;
-    })
-    .join('');
-  const sorted = [...rows.entries()].sort((a, b) => a[1].v - b[1].v);
-  const [cheap, cheapR] = sorted[0];
-  const [dear, dearR] = sorted.at(-1);
+  // Наближення: k — масштаб, tx/ty — зсув (у координатах мапи). Області масштабуються,
+  // а точки й підписи малюються заново на нових місцях і лишаються сталого розміру на екрані.
+  const view = { k: 1, tx: 0, ty: 0 };
+  const K_MAX = 8;
+  // Малі пункти підписуємо, коли наблизили достатньо, щоб було місце.
+  const SMALL_LABELS_AT = 2.5;
+  const marksHtml = (m) => {
+    const { k, tx, ty } = view;
+    const vis = pts
+      .map((p) => ({ ...p, xy: [p.xy[0] * k + tx, p.xy[1] * k + ty] }))
+      .filter(({ xy: [x, y] }) => x > -20 && y > -20 && x < map.w + 20 && y < map.h + 20);
+    const labels = placeLabels(
+      vis.map((p) => (p.c.slug || k >= SMALL_LABELS_AT ? p : { ...p, r: null })),
+      here,
+      map,
+      (c, r) => Math.max(c.name.length * 7.2, fmtPct(r.v).length * 9.5),
+      m,
+    );
+    return vis
+      .sort((a, b) => !!a.c.slug - !!b.c.slug || (a.c === here) - (b.c === here)) // наші міста й ваше — зверху
+      .map(({ c, r, xy: [x, y] }) => {
+        const lb = labels.get(c);
+        const text = lb
+          ? `<text class="mcity__label" x="${lb[0]}" y="${lb[1]}" text-anchor="${lb[2]}"><tspan class="mcity__name" x="${lb[0]}">${esc(c.name)}</tspan><tspan class="mcity__price" x="${lb[0]}" dy="17">${fmtPct(r.v)}</tspan></text>`
+          : '';
+        return `<g class="mcity${r === here ? ' is-here' : ''}${c.slug ? '' : ' mcity--small'}" data-i="${list.indexOf(c)}" transform="translate(${x.toFixed(1)} ${y.toFixed(1)}) scale(${m.toFixed(3)})" style="--tone:${tone(r.v)}">
+            ${r === here ? '<circle class="mcity__ring" r="15"/>' : ''}<circle class="mcity__dot" r="${c.slug ? 9 : 5}"/>${text}</g>`;
+      })
+      .join('');
+  };
+  const sorted = [...list].sort((a, b) => a.v - b.v);
+  const [cheap, dear] = [sorted[0], sorted.at(-1)];
   const verdict = (v) => (Math.abs(v) < 0.5 ? 'приблизно як у середньому' : `на ${fmtPct(v).slice(1)} ${v < 0 ? 'дешевше' : 'дорожче'} за середнє`);
   el.innerHTML = `<div class="panel__head"><h2>Рівень цін у містах</h2></div>
-    <p class="compare__summary">Найдешевше — ${esc(cheap.name)} (${fmtPct(cheapR.v)}), найдорожче — ${esc(dear.name)} (${fmtPct(dearR.v)}).${
+    <p class="compare__summary">Найдешевше — ${esc(cheap.name)} (${fmtPct(cheap.v)}), найдорожче — ${esc(dear.name)} (${fmtPct(dear.v)}).${
       here ? ` У місті ${esc(state.city.name)} — ${verdict(here.v)}.` : ''
     }</p>
-    <div class="umap">
+    <div class="umap umap--zoom">
       <svg viewBox="0 0 ${map.w} ${map.h}" role="img" aria-label="Мапа: різниця цін між містами">
         <g class="umap__regions">${map.regions
           .map((d, i) => {
@@ -1105,21 +1129,132 @@ async function renderHomeMap(el) {
             return `<path d="${d}"${s ? ` style="--rtone:${tone(s[0] / s[1])}"` : ''}/>`;
           })
           .join('')}</g>
-        ${marks}
+        <g class="umap__marks"></g>
       </svg>
+      <div class="umap__zoom">
+        <button type="button" data-z="in" aria-label="Наблизити">+</button>
+        <button type="button" data-z="out" aria-label="Віддалити">−</button>
+        <button type="button" data-z="reset" aria-label="Уся мапа" hidden>⟲</button>
+      </div>
       <div class="tip umap__tip" hidden></div>
     </div>
     <div class="umap__legend">
       <span class="umap__scale"><b>${fmtPct(-span)}</b><i aria-hidden="true"></i><b>${fmtPct(span)}</b></span>
       <span><i class="lg-here" aria-hidden="true"></i>ваше місто</span>
     </div>
-    <p class="note">Відсоток — на скільки поточні ціни (з акціями) у місті вищі чи нижчі за середні по ${rows.size} містах, за товарами, які є в кількох містах одночасно; по одному магазину в кожному місті. Колір області — середнє її міст.</p>`;
+    <p class="note">Відсоток — на скільки поточні ціни (з акціями) у місті вищі чи нижчі за середні по ${list.length} ${plural(list.length, 'місту', 'містах', 'містах')}, за спільними товарами; по одному магазину в кожному місті.${
+      lv.date ? ` Знімок за ${fmtDate(parseDate(lv.date))}: молочні продукти, напої, хліб, ковбаси, кава й чай, побутова хімія.` : ''
+    } Колір області — середнє її міст.</p>`;
   const svg = el.querySelector('svg');
   const tip = el.querySelector('.umap__tip');
+  const regionsG = svg.querySelector('.umap__regions');
+  const marksG = svg.querySelector('.umap__marks');
+  const resetBtn = el.querySelector('[data-z=reset]');
+  const draw = () => {
+    if (!svg.isConnected) return;
+    // Скільки екранних пікселів в одиниці мапи; точки й підписи — не дрібніші, ніж на комп'ютері.
+    const px = svg.clientWidth / map.w || 1;
+    const m = Math.max(1, 0.9 / px);
+    regionsG.setAttribute('transform', `translate(${view.tx} ${view.ty}) scale(${view.k})`);
+    marksG.innerHTML = marksHtml(m);
+    resetBtn.hidden = view.k === 1;
+    // Поки мапу не наблизили, один палець прокручує сторінку; після — рухає мапу.
+    svg.style.touchAction = view.k > 1 ? 'none' : 'pan-y';
+  };
+  let raf = 0;
+  const redraw = () => {
+    if (!raf)
+      raf = requestAnimationFrame(() => {
+        raf = 0;
+        draw();
+      });
+  };
+  const clampView = () => {
+    view.tx = Math.min(0, Math.max(map.w * (1 - view.k), view.tx));
+    view.ty = Math.min(0, Math.max(map.h * (1 - view.k), view.ty));
+  };
+  // Наблизити в f разів довкола точки (x, y) у координатах екрана мапи.
+  const zoomAt = (x, y, f) => {
+    const k = Math.min(K_MAX, Math.max(1, view.k * f));
+    view.tx = x - ((x - view.tx) * k) / view.k;
+    view.ty = y - ((y - view.ty) * k) / view.k;
+    view.k = k;
+    clampView();
+    tip.hidden = true;
+    redraw();
+  };
+  const toMap = (cx, cy) => {
+    const b = svg.getBoundingClientRect();
+    return [((cx - b.left) / b.width) * map.w, ((cy - b.top) / b.height) * map.h];
+  };
+  el.querySelector('.umap__zoom').addEventListener('click', (e) => {
+    const z = e.target.closest('[data-z]')?.dataset.z;
+    if (z === 'reset') {
+      Object.assign(view, { k: 1, tx: 0, ty: 0 });
+      tip.hidden = true;
+      redraw();
+    } else if (z) zoomAt(map.w / 2, map.h / 2, z === 'in' ? 2 : 0.5);
+  });
+  // Колесо миші — з Ctrl (щоб звичайна прокрутка сторінки не наближала мапу) або коли мапу вже наближено.
+  svg.addEventListener(
+    'wheel',
+    (e) => {
+      if (!e.ctrlKey && view.k === 1) return;
+      e.preventDefault();
+      zoomAt(...toMap(e.clientX, e.clientY), Math.exp(-e.deltaY * 0.002));
+    },
+    { passive: false },
+  );
+  svg.addEventListener('dblclick', (e) => zoomAt(...toMap(e.clientX, e.clientY), 2));
+  // Перетягування й «щипок» двома пальцями.
+  const ptrs = new Map();
+  let moved = false;
+  let pinch = null;
+  svg.addEventListener('pointerdown', (e) => {
+    ptrs.set(e.pointerId, [e.clientX, e.clientY]);
+    moved = false;
+    if (ptrs.size === 2) {
+      const [a, b] = [...ptrs.values()];
+      pinch = { d: Math.hypot(a[0] - b[0], a[1] - b[1]) };
+    }
+  });
+  svg.addEventListener('pointermove', (e) => {
+    const prev = ptrs.get(e.pointerId);
+    if (!prev) return;
+    if (ptrs.size === 2 && pinch) {
+      ptrs.set(e.pointerId, [e.clientX, e.clientY]);
+      const [a, b] = [...ptrs.values()];
+      const d = Math.hypot(a[0] - b[0], a[1] - b[1]);
+      zoomAt(...toMap((a[0] + b[0]) / 2, (a[1] + b[1]) / 2), d / pinch.d);
+      pinch.d = d;
+      moved = true;
+      return;
+    }
+    if (view.k === 1) return;
+    const dx = e.clientX - prev[0];
+    const dy = e.clientY - prev[1];
+    if (!moved && Math.hypot(dx, dy) < 4) return;
+    if (!moved) svg.setPointerCapture(e.pointerId);
+    moved = true;
+    ptrs.set(e.pointerId, [e.clientX, e.clientY]);
+    const b = svg.getBoundingClientRect();
+    view.tx += (dx / b.width) * map.w;
+    view.ty += (dy / b.height) * map.h;
+    clampView();
+    tip.hidden = true;
+    redraw();
+  });
+  const up = (e) => {
+    ptrs.delete(e.pointerId);
+    if (ptrs.size < 2) pinch = null;
+  };
+  svg.addEventListener('pointerup', up);
+  svg.addEventListener('pointercancel', up);
+  addEventListener('resize', redraw);
+  draw();
   const show = (g) => {
-    const c = state.cities.find((x) => x.slug === g.dataset.city);
-    const r = rows.get(c);
-    tip.innerHTML = `<b>${esc(c.name)}</b>${r === here ? ' (ваше місто)' : ''}<br>${verdict(r.v)}`;
+    const r = list[g.dataset.i];
+    tip.innerHTML = `<b>${esc(r.name)}</b>${r === here ? ' (ваше місто)' : ''}<br>${verdict(r.v)}`;
     tip.hidden = false;
     const box = el.querySelector('.umap').getBoundingClientRect();
     const dot = g.querySelector('.mcity__dot').getBoundingClientRect();
@@ -1128,13 +1263,14 @@ async function renderHomeMap(el) {
     tip.style.top = `${dot.top - box.top - 6}px`;
   };
   svg.addEventListener('pointermove', (e) => {
-    if (e.pointerType !== 'mouse') return;
+    if (e.pointerType !== 'mouse' || ptrs.size) return;
     const g = e.target.closest('.mcity');
     if (g) show(g);
     else tip.hidden = true;
   });
   svg.addEventListener('pointerleave', () => (tip.hidden = true));
   svg.addEventListener('click', (e) => {
+    if (moved) return; // це було перетягування
     const g = e.target.closest('.mcity');
     if (g) show(g);
     else tip.hidden = true;
@@ -1566,9 +1702,10 @@ const LABEL_AT = { right: [15, -2, 'start'], left: [-15, -2, 'end'], above: [0, 
 // Розставляє підписи по черзі: спершу ваше місто, далі в порядку списку міст (обласні раніше за малі).
 // Кожен підпис стає на перший бік, де не перекриває точки й інші підписи; якщо місця немає —
 // підпису не буде (ціна лишається в підказці при наведенні). Повертає Map місто → [x, y, anchor].
-function placeLabels(pts, here, map, widthOf) {
+// m — у скільки разів збільшено точки й підписи (мапа з наближенням тримає їх сталого екранного розміру).
+function placeLabels(pts, here, map, widthOf, m = 1) {
   const boxes = pts.map(({ r, xy: [x, y] }) => {
-    const d = r === here ? 16 : r ? 9 : 6;
+    const d = (r === here ? 16 : r ? 9 : 6) * m;
     return [x - d, y - d, x + d, y + d];
   });
   const hit = (a) => a[0] < 0 || a[1] < 0 || a[2] > map.w || a[3] > map.h || boxes.some((b) => a[0] < b[2] && b[0] < a[2] && a[1] < b[3] && b[1] < a[3]);
@@ -1580,8 +1717,8 @@ function placeLabels(pts, here, map, widthOf) {
     for (const side of new Set(sides)) {
       let [tx, ty, anchor] = LABEL_AT[side];
       if (r === here) [tx, ty] = [tx * 1.5, ty * 1.25]; // підпис не налазить на кільце «ваше місто»
-      const left = x + tx - (anchor === 'end' ? w : anchor === 'middle' ? w / 2 : 0);
-      const box = [left, y + ty - 10, left + w, y + ty + 19];
+      const left = x + (tx - (anchor === 'end' ? w : anchor === 'middle' ? w / 2 : 0)) * m;
+      const box = [left, y + (ty - 10) * m, left + w * m, y + (ty + 19) * m];
       if (hit(box) && r !== here) continue; // ваше місто підписуємо завжди
       boxes.push(box);
       out.set(c, [tx, ty, anchor]);
