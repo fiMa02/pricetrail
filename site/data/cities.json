@@ -430,5 +430,185 @@
     "address": "вул. Шевченка, 72 б",
     "productCount": 3775,
     "updated": "2026-11-03"
+  },
+  {
+    "slug": "starokostiantyniv",
+    "name": "Старокостянтинів",
+    "lat": 49.756,
+    "lon": 27.208,
+    "address": "вул. Острозького, 2/1",
+    "productCount": 4000,
+    "updated": "2026-11-03"
+  },
+  {
+    "slug": "bar",
+    "name": "Бар",
+    "lat": 49.077,
+    "lon": 27.683,
+    "address": "вул. Сфорци Бони, буд. 8, прим. 1",
+    "productCount": 3923,
+    "updated": "2026-11-03"
+  },
+  {
+    "slug": "horokhiv",
+    "name": "Горохів",
+    "lat": 50.499,
+    "lon": 24.763,
+    "address": "вул. Луцька, 21",
+    "productCount": 4056,
+    "updated": "2026-11-03"
+  },
+  {
+    "slug": "verkhniodniprovsk",
+    "name": "Верхньодніпровськ",
+    "lat": 48.656,
+    "lon": 34.334,
+    "address": "просп. Шевченка, 19",
+    "productCount": 4157,
+    "updated": "2026-11-03"
+  },
+  {
+    "slug": "ovruch",
+    "name": "Овруч",
+    "lat": 51.324,
+    "lon": 28.81,
+    "address": "вул. Тараса Шевченка, 33 а",
+    "productCount": 3627,
+    "updated": "2026-11-03"
+  },
+  {
+    "slug": "perechyn",
+    "name": "Перечин",
+    "lat": 48.735,
+    "lon": 22.476,
+    "address": "пл. Незалежності, буд. 7",
+    "productCount": 3891,
+    "updated": "2026-11-03"
+  },
+  {
+    "slug": "horodenka",
+    "name": "Городенка",
+    "lat": 48.667,
+    "lon": 25.5,
+    "address": "вул. Ринкова, буд. 6-Д",
+    "productCount": 4396,
+    "updated": "2026-11-03"
+  },
+  {
+    "slug": "tarashcha",
+    "name": "Тараща",
+    "lat": 49.556,
+    "lon": 30.502,
+    "address": "вул. Хмельницького Богдана, буд. 51-Б",
+    "productCount": 3827,
+    "updated": "2026-11-03"
+  },
+  {
+    "slug": "haivoron",
+    "name": "Гайворон",
+    "lat": 48.333,
+    "lon": 29.866,
+    "address": "вул. Центральна, буд. 109",
+    "productCount": 3828,
+    "updated": "2026-11-03"
+  },
+  {
+    "slug": "skole",
+    "name": "Сколе",
+    "lat": 49.037,
+    "lon": 23.512,
+    "address": "вул. Князя Святослава, буд. 3 В",
+    "productCount": 4272,
+    "updated": "2026-11-03"
+  },
+  {
+    "slug": "novyi-buh",
+    "name": "Новий Буг",
+    "lat": 47.693,
+    "lon": 32.513,
+    "address": "вул. Захисників України, буд. 7",
+    "productCount": 3851,
+    "updated": "2026-11-03"
+  },
+  {
+    "slug": "artsyz",
+    "name": "Арциз",
+    "lat": 45.993,
+    "lon": 29.418,
+    "address": "вул. Соборна, будинок 2А/1",
+    "productCount": 3235,
+    "updated": "2026-11-03"
+  },
+  {
+    "slug": "karlivka",
+    "name": "Карлівка",
+    "lat": 49.457,
+    "lon": 35.13,
+    "address": "вул. Успенська, 1/6",
+    "productCount": 3550,
+    "updated": "2026-11-03"
+  },
+  {
+    "slug": "berezne",
+    "name": "Березне",
+    "lat": 51,
+    "lon": 26.747,
+    "address": "вул. Андріївська, 46 б",
+    "productCount": 3996,
+    "updated": "2026-11-03"
+  },
+  {
+    "slug": "buryn",
+    "name": "Буринь",
+    "lat": 51.2,
+    "lon": 33.83,
+    "address": "вул. Ринкова, 4/1",
+    "productCount": 3400,
+    "updated": "2026-11-03"
+  },
+  {
+    "slug": "borshchiv",
+    "name": "Борщів",
+    "lat": 48.802,
+    "lon": 26.04,
+    "address": "вул. Бандери С., буд. 132",
+    "productCount": 4050,
+    "updated": "2026-11-03"
+  },
+  {
+    "slug": "zmiiv",
+    "name": "Зміїв",
+    "lat": 49.678,
+    "lon": 36.354,
+    "address": "вул. Донецька, 2, прим. 1",
+    "productCount": 3323,
+    "updated": "2026-11-03"
+  },
+  {
+    "slug": "chyhyryn",
+    "name": "Чигирин",
+    "lat": 49.081,
+    "lon": 32.659,
+    "address": "вул. Хмельницького Богдана, 27",
+    "productCount": 3605,
+    "updated": "2026-11-03"
+  },
+  {
+    "slug": "vyzhnytsia",
+    "name": "Вижниця",
+    "lat": 48.25,
+    "lon": 25.188,
+    "address": "вул. Українська, буд. 100, корп. 2",
+    "productCount": 4321,
+    "updated": "2026-11-03"
+  },
+  {
+    "slug": "mena",
+    "name": "Мена",
+    "lat": 51.523,
+    "lon": 32.215,
+    "address": "вул. Героїв АТО, 4 а",
+    "productCount": 3756,
+    "updated": "2026-11-03"
   }
 ]
