@@ -1070,6 +1070,20 @@ async function loadCompare(id) {
 let mapData;
 const loadMap = () => (mapData ||= fetch('data/ukraine.json').then((r) => r.json()));
 const mapXY = (m, c) => [(c.lon - m.lonMin) * m.k * m.cos, (m.latMax - c.lat) * m.k];
+// Номер області, в якій лежить точка (правило even-odd, як і в заливці контурів).
+function regionAt(m, [x, y]) {
+  m.rings ||= m.regions.map((d) => d.split('Z').filter(Boolean).map((r) => r.slice(1).split('L').map((p) => p.split(',').map(Number))));
+  return m.rings.findIndex((rings) => {
+    let inside = false;
+    for (const ring of rings)
+      for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+        const [xi, yi] = ring[i];
+        const [xj, yj] = ring[j];
+        if (yi > y !== yj > y && x < ((xj - xi) * (y - yi)) / (yj - yi) + xi) inside = !inside;
+      }
+    return inside;
+  });
+}
 // Куди ставити підпис міста, щоб сусідні не налазили один на одного (типово — праворуч).
 const LABEL_SIDE = {
   kamianske: 'left',
@@ -1191,6 +1205,18 @@ async function renderCompare(el, p) {
     const byCity = new Map(rows.map((r) => [r.c, r]));
     const pts = state.cities.filter((c) => c.lat != null).map((c) => ({ c, r: byCity.get(c), xy: mapXY(map, c) }));
     const labels = placeLabels(pts, here, map, diffOf);
+    // Область фарбуємо за середньою ціною міст у ній, де товар є.
+    const sums = new Map();
+    for (const { r, xy } of pts) {
+      if (!r) continue;
+      const i = regionAt(map, xy);
+      const s = sums.get(i) || [0, 0];
+      sums.set(i, [s[0] + r.price, s[1] + 1]);
+    }
+    const regionTone = (i) => {
+      const s = sums.get(i);
+      return s && max > min ? ` style="--rtone:${tone(s[0] / s[1])}"` : '';
+    };
     const marks = pts
       .map(({ c, r, xy: [x, y] }) => {
         const at = `transform="translate(${x.toFixed(1)} ${y.toFixed(1)})"`;
@@ -1206,7 +1232,7 @@ async function renderCompare(el, p) {
       .join('');
     mapHtml = `<div class="umap">
         <svg viewBox="0 0 ${map.w} ${map.h}" role="img" aria-label="Мапа цін по містах України">
-          <g class="umap__regions">${map.regions.map((d) => `<path d="${d}"/>`).join('')}</g>
+          <g class="umap__regions">${map.regions.map((d, i) => `<path d="${d}"${regionTone(i)}/>`).join('')}</g>
           ${marks}
         </svg>
         <div class="tip umap__tip" hidden></div>
@@ -1224,7 +1250,7 @@ async function renderCompare(el, p) {
     <details class="compare__list"${map ? '' : ' open'}><summary>Показати списком (${rows.length} ${plural(rows.length, 'місто', 'міста', 'міст')})</summary>
       <div class="crows">${rows.map(row).join('')}</div>
     </details>
-    <p class="note">Ціни за ${fmtDate(parseDate(state.meta.updated))}, по одному магазину в кожному місті${absent ? `; у ${absent} містах товару немає в асортименті` : ''}. Натисніть місто, щоб перейти до нього.${map ? ' Межі: Natural Earth.' : ''}</p>`;
+    <p class="note">Ціни за ${fmtDate(parseDate(state.meta.updated))}, по одному магазину в кожному місті${absent ? `; у ${absent} містах товару немає в асортименті` : ''}. Натисніть місто, щоб перейти до нього.${map ? `${max > min ? ' Колір області — середня ціна в її містах.' : ''} Межі: Natural Earth.` : ''}</p>`;
 
   const go = (slug) => {
     if (slug === state.city.slug) return;
