@@ -420,7 +420,7 @@ select {
 /* Місто, ціни якого відкрито на картці (не вибране): кільце пунктиром */
 .mcity.is-shown .mcity__ring { stroke: var(--ink-2); stroke-dasharray: 5 4; }
 .mcity.is-shown .mcity__name { fill: var(--ink); font-weight: 700; }
-.umap__tip { transform: translate(-50%, -100%); white-space: normal; text-align: center; min-width: 120px; }
+.tip.umap__tip { transform: translate(-50%, -100%); white-space: normal; text-align: center; min-width: 120px; }
 .umap__tip .crow__diff--down { color: color-mix(in oklab, var(--good) 60%, var(--bg)); }
 .umap__tip .crow__diff--up { color: color-mix(in oklab, var(--sale) 60%, var(--bg)); }
 .umap__go { pointer-events: auto; margin-top: 6px; padding: 5px 12px; font-size: 13px; background: var(--bg); color: var(--ink); border: 0; }
