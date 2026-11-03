@@ -722,3 +722,5 @@ th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--lin
 .umap__weeks { max-width: 880px; margin: 6px auto 10px; display: flex; align-items: center; gap: 12px; }
 .umap__weeks input { flex: 1; accent-color: var(--accent); }
 .umap__week { font-size: 13px; color: var(--ink-2); font-variant-numeric: tabular-nums; white-space: nowrap; }
+/* На головній мапа — на всю ширину панелі */
+.home-map .umap, .home-map .umap__legend, .home-map .umap__weeks { max-width: none; }

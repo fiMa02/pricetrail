@@ -1133,7 +1133,10 @@ async function renderHomeMap(el) {
       m,
       oblastBoxes,
     );
+    // Назву області, на яку налазить підпис вашого міста, ховаємо — підпис важливіший.
+    const hb = labels.hereBox;
     const oblastHtml = oblasts
+      .filter((o, i) => !hb || !(oblastBoxes[i][0] < hb[2] && hb[0] < oblastBoxes[i][2] && oblastBoxes[i][1] < hb[3] && hb[1] < oblastBoxes[i][3]))
       .map(({ name, x, y }) => `<text class="umap__oblast" transform="translate(${x.toFixed(1)} ${y.toFixed(1)}) scale(${mo.toFixed(3)})" text-anchor="middle">${esc(name)}</text>`)
       .join('');
     // Точки: на всій мапі — пропорційні мапі (на телефоні дрібні, щоб не зливались), з наближенням ростуть до
@@ -1791,15 +1794,24 @@ function placeLabels(pts, here, map, widthOf, m = 1, taken = []) {
   for (const { c, r, xy: [x, y] } of order) {
     const w = widthOf(c, r);
     const sides = [LABEL_SIDE[c.slug] || 'right', 'right', 'left', 'above', 'below'];
+    let first = null;
     for (const side of new Set(sides)) {
       let [tx, ty, anchor] = LABEL_AT[side];
       if (r === here) [tx, ty] = [tx * 1.5, ty * 1.25]; // підпис не налазить на кільце «ваше місто»
       const left = x + (tx - (anchor === 'end' ? w : anchor === 'middle' ? w / 2 : 0)) * m;
       const box = [left, y + (ty - 10) * m, left + w * m, y + (ty + 19) * m];
-      if (hit(box) && r !== here) continue; // ваше місто підписуємо завжди
+      first ||= { box, at: [tx, ty, anchor] };
+      if (hit(box)) continue;
       boxes.push(box);
       out.set(c, [tx, ty, anchor]);
+      if (r === here) out.hereBox = box;
       break;
+    }
+    // Ваше місто підписуємо завжди: якщо вільного боку немає — на першому.
+    if (r === here && !out.has(c)) {
+      boxes.push(first.box);
+      out.set(c, first.at);
+      out.hereBox = first.box;
     }
   }
   return out;
