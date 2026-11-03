@@ -1260,7 +1260,7 @@ async function renderHomeMap(el) {
     const dot = g.querySelector('.mcity__dot').getBoundingClientRect();
     const cx = dot.left + dot.width / 2 - box.left;
     tip.style.left = `${Math.min(Math.max(cx, tip.offsetWidth / 2 + 4), box.width - tip.offsetWidth / 2 - 4)}px`;
-    tip.style.top = `${dot.top - box.top - 6}px`;
+    tip.style.top = `${dot.top - box.top - 16}px`; // вище за точку, щоб курсор не закривав підказку
   };
   svg.addEventListener('pointermove', (e) => {
     if (e.pointerType !== 'mouse' || ptrs.size) return;
@@ -1869,7 +1869,7 @@ async function renderCompare(el, p) {
     const dot = g.querySelector('circle:last-of-type').getBoundingClientRect();
     const cx = dot.left + dot.width / 2 - box.left;
     tip.style.left = `${Math.min(Math.max(cx, tip.offsetWidth / 2 + 4), box.width - tip.offsetWidth / 2 - 4)}px`;
-    tip.style.top = `${dot.top - box.top - 6}px`;
+    tip.style.top = `${dot.top - box.top - 16}px`; // вище за точку, щоб курсор не закривав підказку
   };
   const svg = el.querySelector('.umap svg');
   if (svg) {
