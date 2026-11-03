@@ -1088,20 +1088,38 @@ async function renderHomeMap(el) {
   // а точки й підписи малюються заново на нових місцях і лишаються сталого розміру на екрані.
   const view = { k: 1, tx: 0, ty: 0 };
   const K_MAX = 8;
-  // Малі пункти підписуємо, коли наблизили достатньо, щоб було місце.
-  const SMALL_LABELS_AT = 2.5;
-  const marksHtml = (m) => {
+  // Назви областей — завжди; назви міст — при наближенні (наші міста раніше, малі пункти — пізніше).
+  // Ваше місто підписане завжди.
+  const CITY_LABELS_AT = 2;
+  const SMALL_LABELS_AT = 3;
+  const marksHtml = (m, px) => {
     const { k, tx, ty } = view;
+    // Назви областей на маленькому екрані без наближення — дрібніші (8,5 px), щоб не налазили одна на одну.
+    const mo = Math.min(m, Math.max(1, (8.5 + 3 * (k - 1)) / (11.5 * px)));
     const vis = pts
       .map((p) => ({ ...p, xy: [p.xy[0] * k + tx, p.xy[1] * k + ty] }))
       .filter(({ xy: [x, y] }) => x > -20 && y > -20 && x < map.w + 20 && y < map.h + 20);
+    const oblasts = (map.names || [])
+      .map((name, i) => name && map.labels[i] && { name, x: map.labels[i][0] * k + tx, y: map.labels[i][1] * k + ty })
+      .filter((o) => o && o.x > 0 && o.y > 0 && o.x < map.w && o.y < map.h);
+    const oblastBoxes = oblasts.map(({ name, x, y }) => {
+      const w = name.length * 6.6 * mo;
+      return [x - w / 2, y - 9 * mo, x + w / 2, y + 5 * mo];
+    });
     const labels = placeLabels(
-      vis.map((p) => (p.c.slug || k >= SMALL_LABELS_AT ? p : { ...p, r: null })),
+      vis.map((p) => (p.c === here || (p.c.slug ? k >= CITY_LABELS_AT : k >= SMALL_LABELS_AT) ? p : { ...p, r: null })),
       here,
       map,
       (c, r) => Math.max(c.name.length * 7.2, fmtPct(r.v).length * 9.5),
       m,
+      oblastBoxes,
     );
+    const oblastHtml = oblasts
+      .map(({ name, x, y }) => `<text class="umap__oblast" transform="translate(${x.toFixed(1)} ${y.toFixed(1)}) scale(${mo.toFixed(3)})" text-anchor="middle">${esc(name)}</text>`)
+      .join('');
+    // Точки: на всій мапі — пропорційні мапі (на телефоні дрібні, щоб не зливались), з наближенням ростуть до
+    // екранного розміру підписів; md — їхній масштаб, m — масштаб підписів.
+    const md = Math.min(m, Math.max(1, k));
     return vis
       .sort((a, b) => !!a.c.slug - !!b.c.slug || (a.c === here) - (b.c === here)) // наші міста й ваше — зверху
       .map(({ c, r, xy: [x, y] }) => {
@@ -1109,10 +1127,10 @@ async function renderHomeMap(el) {
         const text = lb
           ? `<text class="mcity__label" x="${lb[0]}" y="${lb[1]}" text-anchor="${lb[2]}"><tspan class="mcity__name" x="${lb[0]}">${esc(c.name)}</tspan><tspan class="mcity__price" x="${lb[0]}" dy="17">${fmtPct(r.v)}</tspan></text>`
           : '';
-        return `<g class="mcity${r === here ? ' is-here' : ''}${c.slug ? '' : ' mcity--small'}" data-i="${list.indexOf(c)}" transform="translate(${x.toFixed(1)} ${y.toFixed(1)}) scale(${m.toFixed(3)})" style="--tone:${tone(r.v)}">
-            ${r === here ? '<circle class="mcity__ring" r="15"/>' : ''}<circle class="mcity__dot" r="${c.slug ? 9 : 5}"/>${text}</g>`;
+        return `<g class="mcity${r === here ? ' is-here' : ''}${c.slug ? '' : ' mcity--small'}" data-i="${list.indexOf(c)}" transform="translate(${x.toFixed(1)} ${y.toFixed(1)})" style="--tone:${tone(r.v)}">
+            <g transform="scale(${md.toFixed(3)})">${r === here ? '<circle class="mcity__ring" r="15"/>' : ''}<circle class="mcity__dot" r="${c.slug ? 9 : 5}"/></g>${text ? `<g transform="scale(${m.toFixed(3)})">${text}</g>` : ''}</g>`;
       })
-      .join('');
+      .join('') + oblastHtml; // назви областей — поверх точок
   };
   const sorted = [...list].sort((a, b) => a.v - b.v);
   const [cheap, dear] = [sorted[0], sorted.at(-1)];
@@ -1156,7 +1174,7 @@ async function renderHomeMap(el) {
     const px = svg.clientWidth / map.w || 1;
     const m = Math.max(1, 0.9 / px);
     regionsG.setAttribute('transform', `translate(${view.tx} ${view.ty}) scale(${view.k})`);
-    marksG.innerHTML = marksHtml(m);
+    marksG.innerHTML = marksHtml(m, px);
     resetBtn.hidden = view.k === 1;
     // Поки мапу не наблизили, один палець прокручує сторінку; після — рухає мапу.
     svg.style.touchAction = view.k > 1 ? 'none' : 'pan-y';
@@ -1702,12 +1720,14 @@ const LABEL_AT = { right: [15, -2, 'start'], left: [-15, -2, 'end'], above: [0, 
 // Розставляє підписи по черзі: спершу ваше місто, далі в порядку списку міст (обласні раніше за малі).
 // Кожен підпис стає на перший бік, де не перекриває точки й інші підписи; якщо місця немає —
 // підпису не буде (ціна лишається в підказці при наведенні). Повертає Map місто → [x, y, anchor].
-// m — у скільки разів збільшено точки й підписи (мапа з наближенням тримає їх сталого екранного розміру).
-function placeLabels(pts, here, map, widthOf, m = 1) {
+// m — у скільки разів збільшено точки й підписи (мапа з наближенням тримає їх сталого екранного розміру);
+// taken — уже зайняті місця (наприклад, назви областей), на які підписи не мають налазити.
+function placeLabels(pts, here, map, widthOf, m = 1, taken = []) {
   const boxes = pts.map(({ r, xy: [x, y] }) => {
     const d = (r === here ? 16 : r ? 9 : 6) * m;
     return [x - d, y - d, x + d, y + d];
   });
+  boxes.push(...taken);
   const hit = (a) => a[0] < 0 || a[1] < 0 || a[2] > map.w || a[3] > map.h || boxes.some((b) => a[0] < b[2] && b[0] < a[2] && a[1] < b[3] && b[1] < a[3]);
   const out = new Map();
   const order = pts.filter((p) => p.r).sort((a, b) => (b.r === here) - (a.r === here));
