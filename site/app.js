@@ -1043,6 +1043,108 @@ const BETA = (() => {
 const isHome = () => BETA && (location.hash === '' || location.hash === '#/' || location.hash === '#');
 const HOME_BLOCK = 8;
 
+// Мапа на бета-головній: на скільки % у кожному місті дорожче чи дешевше, ніж у вибраному (data/compare/index.json).
+let priceIndex;
+const loadIndex = () => (priceIndex ||= fetch('data/compare/index.json').then((r) => (r.ok ? r.json() : null)).catch(() => null));
+const fmtPct = (v) => `${v > 0 ? '+' : v < 0 ? '−' : ''}${String(Math.abs(v).toFixed(1)).replace('.', ',')}%`;
+
+async function renderHomeMap(el) {
+  const [idx, map] = await Promise.all([loadIndex(), loadMap().catch(() => null)]);
+  if (!el.isConnected) return;
+  const me = idx?.cities.indexOf(state.city.slug) ?? -1;
+  if (!map || me < 0) return el.remove();
+  const at = new Map(idx.cities.map((slug, i) => [slug, i]));
+  const rows = new Map();
+  for (const c of state.cities) {
+    const i = at.get(c.slug);
+    if (i != null && idx.n[i][me] >= 300) rows.set(c, { v: idx.d[i][me], n: idx.n[i][me] });
+  }
+  const vals = [...rows.values()].map((r) => r.v);
+  const lo = Math.min(...vals);
+  const hi = Math.max(...vals);
+  // Шкала симетрична відносно вибраного міста: зелений — дешевше, сірий — так само, червоний — дорожче.
+  const span = Math.max(-lo, hi, 0.5);
+  const tone = (v) =>
+    v <= 0
+      ? `color-mix(in oklab, var(--good) ${Math.round(Math.min(1, -v / span) * 100)}%, var(--map-mid))`
+      : `color-mix(in oklab, var(--sale) ${Math.round(Math.min(1, v / span) * 100)}%, var(--map-mid))`;
+  const pts = state.cities.filter((c) => c.lat != null).map((c) => ({ c, r: rows.get(c), xy: mapXY(map, c) }));
+  const here = rows.get(state.city);
+  const labels = placeLabels(pts, here, map, (c, r) => Math.max(c.name.length * 7.2, (r === here ? 7 : fmtPct(r.v).length) * 9.5));
+  const sums = new Map();
+  for (const { r, xy } of pts) {
+    if (!r || r === here) continue;
+    const i = regionAt(map, xy);
+    const s = sums.get(i) || [0, 0];
+    sums.set(i, [s[0] + r.v, s[1] + 1]);
+  }
+  const marks = pts
+    .map(({ c, r, xy: [x, y] }) => {
+      if (!r) return '';
+      const lb = labels.get(c);
+      const text = lb
+        ? `<text class="mcity__label" x="${lb[0]}" y="${lb[1]}" text-anchor="${lb[2]}"><tspan class="mcity__name" x="${lb[0]}">${esc(c.name)}</tspan><tspan class="mcity__price" x="${lb[0]}" dy="17">${r === here ? 'ваше місто' : fmtPct(r.v)}</tspan></text>`
+        : '';
+      return `<g class="mcity${r === here ? ' is-here' : ''}" data-city="${c.slug}" transform="translate(${x.toFixed(1)} ${y.toFixed(1)})" style="--tone:${r === here ? 'var(--accent)' : tone(r.v)}">
+          ${r === here ? '<circle class="mcity__ring" r="15"/>' : ''}<circle class="mcity__dot" r="9"/>${text}</g>`;
+    })
+    .join('');
+  const others = [...rows.entries()].filter(([c]) => c !== state.city).sort((a, b) => a[1].v - b[1].v);
+  const [cheap, cheapR] = others[0] || [];
+  const [dear, dearR] = others.at(-1) || [];
+  el.innerHTML = `<div class="panel__head"><h2>Ціни в містах порівняно з містом ${esc(state.city.name)}</h2></div>
+    ${
+      cheap
+        ? `<p class="compare__summary">Найдешевше — ${esc(cheap.name)} (${fmtPct(cheapR.v)}), найдорожче — ${esc(dear.name)} (${fmtPct(dearR.v)}).</p>`
+        : ''
+    }
+    <div class="umap">
+      <svg viewBox="0 0 ${map.w} ${map.h}" role="img" aria-label="Мапа: різниця цін між містами">
+        <g class="umap__regions">${map.regions
+          .map((d, i) => {
+            const s = sums.get(i);
+            return `<path d="${d}"${s ? ` style="--rtone:${tone(s[0] / s[1])}"` : ''}/>`;
+          })
+          .join('')}</g>
+        ${marks}
+      </svg>
+      <div class="tip umap__tip" hidden></div>
+    </div>
+    <div class="umap__legend">
+      <span class="umap__scale"><b>${fmtPct(-span)}</b><i aria-hidden="true"></i><b>${fmtPct(span)}</b></span>
+      <span><i class="lg-here" aria-hidden="true"></i>ваше місто</span>
+    </div>
+    <p class="note">Середня різниця поточних цін (з акціями) на товари, що є в обох містах; по одному магазину в кожному місті. Колір області — середнє її міст.</p>`;
+  const svg = el.querySelector('svg');
+  const tip = el.querySelector('.umap__tip');
+  const show = (g) => {
+    const c = state.cities.find((x) => x.slug === g.dataset.city);
+    const r = rows.get(c);
+    tip.innerHTML =
+      r === here
+        ? `<b>${esc(c.name)}</b><br>ваше місто`
+        : `<b>${esc(c.name)}</b><br>${Math.abs(r.v) < 0.05 ? 'так само' : `на ${fmtPct(r.v).slice(1)} ${r.v < 0 ? 'дешевше' : 'дорожче'}`}<br><span class="note">за ${r.n.toLocaleString('uk')} спільними товарами</span>`;
+    tip.hidden = false;
+    const box = el.querySelector('.umap').getBoundingClientRect();
+    const dot = g.querySelector('.mcity__dot').getBoundingClientRect();
+    const cx = dot.left + dot.width / 2 - box.left;
+    tip.style.left = `${Math.min(Math.max(cx, tip.offsetWidth / 2 + 4), box.width - tip.offsetWidth / 2 - 4)}px`;
+    tip.style.top = `${dot.top - box.top - 6}px`;
+  };
+  svg.addEventListener('pointermove', (e) => {
+    if (e.pointerType !== 'mouse') return;
+    const g = e.target.closest('.mcity');
+    if (g) show(g);
+    else tip.hidden = true;
+  });
+  svg.addEventListener('pointerleave', () => (tip.hidden = true));
+  svg.addEventListener('click', (e) => {
+    const g = e.target.closest('.mcity');
+    if (g) show(g);
+    else tip.hidden = true;
+  });
+}
+
 function renderHome() {
   const top = document.querySelector('.top');
   top.classList.remove('is-product');
@@ -1052,11 +1154,14 @@ function renderHome() {
   const tabs = d ? d.tabs.filter((t) => t[2].length) : [];
   const all = `<a class="home-all" href="#/all">Усі товари <b>${state.products.length.toLocaleString('uk')}</b> →</a>`;
   if (!tabs.length) {
-    app.innerHTML = `<div class="empty"><b>😌</b>${d ? 'Сьогодні ціни не змінилися' : 'Змін поки немає'}<br><span class="note">Знайдіть товар через пошук угорі</span></div>${all}`;
+    app.innerHTML = `<section class="panel home-map" id="homeMap"><div class="sk" style="height:320px;border-radius:12px"></div></section>
+      <div class="empty"><b>😌</b>${d ? 'Сьогодні ціни не змінилися' : 'Змін поки немає'}<br><span class="note">Знайдіть товар через пошук угорі</span></div>${all}`;
+    renderHomeMap($('#homeMap'));
     return;
   }
   const stale = d.date !== state.meta.updated ? ` (останній збір у цьому місті — ${fmtDate(parseDate(state.meta.updated))})` : '';
-  app.innerHTML = `<div class="home-head"><div><h1 class="page-title">Що змінилося ${fmtDate(parseDate(d.date), false)}</h1>
+  app.innerHTML = `<section class="panel home-map" id="homeMap"><div class="sk" style="height:320px;border-radius:12px"></div></section>
+    <div class="home-head"><div><h1 class="page-title">Що змінилося ${fmtDate(parseDate(d.date), false)}</h1>
       <p class="note today-sub">${esc(state.city.name)}: зміни порівняно з попереднім днем${stale}.</p></div>${all}</div>
     ${tabs
       .map(
@@ -1066,6 +1171,7 @@ function renderHome() {
         </section>`,
       )
       .join('')}`;
+  renderHomeMap($('#homeMap'));
 }
 
 function renderToday(tab) {
@@ -1464,7 +1570,7 @@ const LABEL_AT = { right: [15, -2, 'start'], left: [-15, -2, 'end'], above: [0, 
 // Розставляє підписи по черзі: спершу ваше місто, далі в порядку списку міст (обласні раніше за малі).
 // Кожен підпис стає на перший бік, де не перекриває точки й інші підписи; якщо місця немає —
 // підпису не буде (ціна лишається в підказці при наведенні). Повертає Map місто → [x, y, anchor].
-function placeLabels(pts, here, map, diffOf) {
+function placeLabels(pts, here, map, widthOf) {
   const boxes = pts.map(({ r, xy: [x, y] }) => {
     const d = r === here ? 16 : r ? 9 : 6;
     return [x - d, y - d, x + d, y + d];
@@ -1473,9 +1579,7 @@ function placeLabels(pts, here, map, diffOf) {
   const out = new Map();
   const order = pts.filter((p) => p.r).sort((a, b) => (b.r === here) - (a.r === here));
   for (const { c, r, xy: [x, y] } of order) {
-    // Ширина на око: назва 13px, ціна 15.5px (+ відсоток 13px).
-    const pct = diffOf(r)?.cls ? diffOf(r).text.length * 7.5 + 5 : 0;
-    const w = Math.max(c.name.length * 7.2, fmtPrice(r.price).length * 9.5 + pct);
+    const w = widthOf(c, r);
     const sides = [LABEL_SIDE[c.slug] || 'right', 'right', 'left', 'above', 'below'];
     for (const side of new Set(sides)) {
       let [tx, ty, anchor] = LABEL_AT[side];
@@ -1561,7 +1665,10 @@ async function renderCompare(el, p) {
   if (map) {
     const byCity = new Map(rows.map((r) => [r.c, r]));
     const pts = state.cities.filter((c) => c.lat != null).map((c) => ({ c, r: byCity.get(c), xy: mapXY(map, c) }));
-    const labels = placeLabels(pts, here, map, diffOf);
+    // Ширина підпису на око: назва 13px, ціна 15.5px (+ відсоток 13px).
+    const labels = placeLabels(pts, here, map, (c, r) =>
+      Math.max(c.name.length * 7.2, fmtPrice(r.price).length * 9.5 + (diffOf(r)?.cls ? diffOf(r).text.length * 7.5 + 5 : 0)),
+    );
     // Область фарбуємо за середньою ціною міст у ній, де товар є.
     const sums = new Map();
     for (const { r, xy } of pts) {

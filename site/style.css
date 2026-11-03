@@ -708,3 +708,5 @@ th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--lin
 .home-block .section-head a { color: var(--accent); font-weight: 500; font-size: 14px; text-decoration: none; }
 /* На телефоні в блоці — 4 картки (два ряди) */
 @media (max-width: 520px) { .home-block .grid > :nth-child(n+5) { display: none; } }
+.home-map { margin-top: 16px; }
+.home-map .note { margin: 12px 0 0; }
