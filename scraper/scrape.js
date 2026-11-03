@@ -24,7 +24,7 @@ const DATA_DIR = path.resolve('site/data');
 const STORES_FILE = path.resolve('scraper/stores.json');
 const SHARDS = 100;
 const DELAY_MS = 700;
-const PARALLEL_CITIES = 4;
+const PARALLEL_CITIES = 5;
 const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0 Safari/537.36';
 // Найбільший розділ — за ним оцінюємо асортимент магазину.
 const PROBE_CATEGORY = '/catalog/285-bakaliya';
