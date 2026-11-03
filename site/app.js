@@ -799,7 +799,10 @@ function applyFilters() {
     sessionStorage.setItem('filters', JSON.stringify(filters));
   } catch {}
   state.shown = PAGE;
-  if (location.hash.startsWith('#/p/') || location.hash === '#/fav' || location.hash === '#/list' || location.hash.startsWith('#/today')) location.hash = '#/';
+  if (BETA) {
+    if (location.hash !== '#/all') location.hash = '#/all';
+    else renderList();
+  } else if (location.hash.startsWith('#/p/') || location.hash === '#/fav' || location.hash === '#/list' || location.hash.startsWith('#/today')) location.hash = '#/';
   else renderList();
 }
 
@@ -849,6 +852,10 @@ function bindFilters() {
     b.setAttribute('aria-label', isFav(id) ? 'Прибрати з обраного' : 'Додати в обране');
   });
   initFilterPanel();
+  // Бета-головна: натискання на пошук відкриває всі товари з фільтрами й сортуванням.
+  $('#q').addEventListener('focus', () => {
+    if (isHome()) location.hash = '#/all';
+  });
   $('#q').addEventListener('input', () => {
     clearTimeout(t);
     t = setTimeout(update, 150);
@@ -1008,12 +1015,65 @@ try {
 } catch {}
 if (!TODAY_SORTS[todaySort]) todaySort = 'change-desc'; // зокрема колишні «change» і «discount»
 
+// Картка у вкладці «Що змінилося» k (і в блоках бета-головної).
+function todayTile(k, r) {
+  return card(
+    r.p,
+    // У «Нові акції» і «Повторні акції» стара ціна вже видна закресленою — позначка «було» там зайва.
+    // У «Дорожче, ніж до акції» «було» — це ціна до знижки, з якою й порівнюємо.
+    k === 'saleUp' ? r.c.fromOld : r.c && r.c.to !== r.c.from && k !== 'sale' && k !== 'repeat' ? r.c.from : undefined,
+    k === 'saleUp'
+      ? `<span class="tag tag--warn tag--wrap" title="Під час акції: ${fmtPrice(r.c.from)} грн замість ${fmtPrice(r.c.fromOld)} грн; тепер ${fmtPrice(r.c.to)} грн"><span>⇧ Була акція −${pct(r.c.from, r.c.fromOld)}%</span> <span>${fmtPrice(r.c.from)} грн</span></span>`
+      : r.kind === 'saleEnd' && (k === 'saleEnd' || k === 'saleKept')
+        ? `<span class="tag tag--warn" title="Акційна ціна була ${fmtPrice(r.c.from)} грн замість ${fmtPrice(r.c.fromOld)} грн${r.c.to === r.c.from ? '; після акції ціна не змінилась' : ''}">⌛ ${
+            r.c.to === r.c.from ? `акція −${pct(r.c.from, r.c.fromOld)}% скінчилась` : `була акція −${pct(r.c.from, r.c.fromOld)}%`
+          }</span>`
+        : '',
+  );
+}
+
+// ---------- Бета: головна зі змінами за сьогодні ----------
+// ?beta=1 вмикає (запам'ятовується в браузері), ?beta=0 вимикає. На головній — блоки змін за останній збір;
+// усі товари з пошуком, фільтрами й сортуванням — на #/all (відкривається натисканням на пошук).
+const BETA = (() => {
+  const v = new URLSearchParams(location.search).get('beta');
+  if (v != null) store.set('beta', v === '1' ? '1' : '');
+  return store.get('beta') === '1';
+})();
+const isHome = () => BETA && (location.hash === '' || location.hash === '#/' || location.hash === '#');
+const HOME_BLOCK = 8;
+
+function renderHome() {
+  const top = document.querySelector('.top');
+  top.classList.remove('is-product');
+  top.classList.add('is-home');
+  document.title = 'PriceTrail — історія цін';
+  const d = todayData();
+  const tabs = d ? d.tabs.filter((t) => t[2].length) : [];
+  const all = `<a class="home-all" href="#/all">Усі товари <b>${state.products.length.toLocaleString('uk')}</b> →</a>`;
+  if (!tabs.length) {
+    app.innerHTML = `<div class="empty"><b>😌</b>${d ? 'Сьогодні ціни не змінилися' : 'Змін поки немає'}<br><span class="note">Знайдіть товар через пошук угорі</span></div>${all}`;
+    return;
+  }
+  const stale = d.date !== state.meta.updated ? ` (останній збір у цьому місті — ${fmtDate(parseDate(state.meta.updated))})` : '';
+  app.innerHTML = `<div class="home-head"><div><h1 class="page-title">Що змінилося ${fmtDate(parseDate(d.date), false)}</h1>
+      <p class="note today-sub">${esc(state.city.name)}: зміни порівняно з попереднім днем${stale}.</p></div>${all}</div>
+    ${tabs
+      .map(
+        ([k, label, list]) => `<section class="home-block">
+          <div class="section-head"><h2>${label} <small>${list.length}</small></h2>${list.length > HOME_BLOCK ? `<a href="#/today/${k}">Усі ${list.length} →</a>` : ''}</div>
+          <div class="grid">${list.slice(0, HOME_BLOCK).map((r) => todayTile(k, r)).join('')}</div>
+        </section>`,
+      )
+      .join('')}`;
+}
+
 function renderToday(tab) {
   document.querySelector('.top').classList.add('is-product');
   document.title = 'Що змінилося — PriceTrail';
   scrollTo(0, 0);
   const d = todayData();
-  const head = '<a class="back" href="#/">← Усі товари</a><h1 class="page-title">Що змінилося</h1>';
+  const head = `<a class="back" href="#/">← ${BETA ? 'Головна' : 'Усі товари'}</a><h1 class="page-title">Що змінилося</h1>`;
   if (!d) {
     app.innerHTML = `${head}<div class="empty"><b>🗓</b>Змін поки немає<br><span class="note">Стрічка з'явиться після наступного щоденного збору цін</span></div>`;
     return;
@@ -1032,20 +1092,7 @@ function renderToday(tab) {
     <select id="todaySort" class="pill today-sort" aria-label="Сортування">${Object.entries(TODAY_SORTS)
       .map(([k, [label]]) => `<option value="${k}"${k === todaySort ? ' selected' : ''}>${label}</option>`)
       .join('')}</select></div>`;
-  const tile = (r) =>
-    card(
-          r.p,
-          // У «Нові акції» і «Повторні акції» стара ціна вже видна закресленою — позначка «було» там зайва.
-          // У «Дорожче, ніж до акції» «було» — це ціна до знижки, з якою й порівнюємо.
-          cur[0] === 'saleUp' ? r.c.fromOld : r.c && r.c.to !== r.c.from && cur[0] !== 'sale' && cur[0] !== 'repeat' ? r.c.from : undefined,
-          cur[0] === 'saleUp'
-            ? `<span class="tag tag--warn tag--wrap" title="Під час акції: ${fmtPrice(r.c.from)} грн замість ${fmtPrice(r.c.fromOld)} грн; тепер ${fmtPrice(r.c.to)} грн"><span>⇧ Була акція −${pct(r.c.from, r.c.fromOld)}%</span> <span>${fmtPrice(r.c.from)} грн</span></span>`
-            : r.kind === 'saleEnd' && (cur[0] === 'saleEnd' || cur[0] === 'saleKept')
-            ? `<span class="tag tag--warn" title="Акційна ціна була ${fmtPrice(r.c.from)} грн замість ${fmtPrice(r.c.fromOld)} грн${r.c.to === r.c.from ? '; після акції ціна не змінилась' : ''}">⌛ ${
-                r.c.to === r.c.from ? `акція −${pct(r.c.from, r.c.fromOld)}% скінчилась` : `була акція −${pct(r.c.from, r.c.fromOld)}%`
-              }</span>`
-            : '',
-        );
+  const tile = (r) => todayTile(cur[0], r);
   const sorter = TODAY_SORTS[todaySort][1];
   const list = sorter === 'reverse' ? [...cur[2]].reverse() : sorter ? [...cur[2]].sort((a, b) => sorter(a.p, b.p)) : cur[2];
   html += `<div class="grid">${list.map(tile).join('')}</div>`;
@@ -1139,13 +1186,13 @@ function initFilterPanel() {
 }
 
 function renderList() {
-  document.querySelector('.top').classList.remove('is-product');
+  document.querySelector('.top').classList.remove('is-product', 'is-home');
   document.title = 'PriceTrail — історія цін';
   const list = filtered();
   renderGroups();
   if (!list.length) {
     const why = filters.inflated ? 'Акцій із завищеною «ціною до знижки» тут поки не виявлено' : 'Спробуйте іншу назву або приберіть фільтри';
-    app.innerHTML = `${filters.q ? '' : todayBanner()}<div class="empty"><b>🔍</b>Нічого не знайдено<br><span class="note">${why}</span></div>`;
+    app.innerHTML = `${BETA ? '<a class="back" href="#/">← Головна</a>' : filters.q ? '' : todayBanner()}<div class="empty"><b>🔍</b>Нічого не знайдено<br><span class="note">${why}</span></div>`;
     return;
   }
   let count = `Знайдено: ${list.length.toLocaleString('uk')}`;
@@ -1154,7 +1201,7 @@ function renderList() {
     const n = list.filter((p) => perIn(p, perUnitSort) != null).length;
     count += ` · з ціною за 1 ${perUnitSort}: ${n.toLocaleString('uk')}`;
   }
-  app.innerHTML = `${filters.q ? '' : todayBanner()}<p class="count">${count}</p>
+  app.innerHTML = `${BETA ? '<a class="back" href="#/">← Головна</a>' : filters.q ? '' : todayBanner()}<p class="count">${count}</p>
     <div class="grid" id="grid">${list.slice(0, state.shown).map((p) => card(p)).join('')}</div>
     ${list.length > state.shown ? '<button class="more" id="more">Показати ще</button>' : ''}`;
   placeAds($('#grid'));
@@ -1848,7 +1895,7 @@ let favFromBack = '#/';
 const backLink = (to = backTo) => {
   const p = to.startsWith('#/p/') && state.byId.get(parseInt(to.slice(4), 10));
   const name = p && (p.name.length > 40 ? `${p.name.slice(0, 38).trim()}…` : p.name);
-  const label = p ? name : to.startsWith('#/today') ? 'Що змінилося' : to === '#/fav' ? 'Обране' : to === '#/list' ? 'Список покупок' : 'Усі товари';
+  const label = p ? name : to.startsWith('#/today') ? 'Що змінилося' : to === '#/fav' ? 'Обране' : to === '#/list' ? 'Список покупок' : BETA && to !== '#/all' ? 'Головна' : 'Усі товари';
   return `<a class="back" href="${esc(to)}">← ${esc(label)}</a>`;
 };
 
@@ -1880,6 +1927,7 @@ function route(e) {
     // Помилка всередині startViewTransition не дійде до жодного обробника — сторінка лишилася б із заглушками.
     try {
       if (m) renderProduct(Number(m[1]), m[2]);
+      else if (isHome()) renderHome();
       else if (onFavs) renderFavs();
       else if (onCart) {
         scrollTo(0, 0);

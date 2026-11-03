@@ -696,3 +696,15 @@ th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--lin
   .cart-row__qty { grid-area: q; justify-self: start; }
   .cart-row__sum { grid-area: s; }
 }
+
+/* Бета-головна: лише пошук у шапці, під ним — блоки змін за сьогодні */
+.top.is-home .sort-pill, .top.is-home .fpanel { display: none; }
+.home-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 16px; margin-top: 16px; }
+.home-head .page-title { margin: 0; }
+.home-all { padding: 7px 14px; border-radius: 999px; background: var(--accent-soft); color: var(--accent); font-weight: 600; font-size: 14px; text-decoration: none; }
+.home-all:hover { filter: brightness(1.08); }
+.home-all b { font-variant-numeric: tabular-nums; }
+.home-block .section-head h2 small { color: var(--muted); font-weight: 600; font-size: 14px; margin-left: 4px; }
+.home-block .section-head a { color: var(--accent); font-weight: 500; font-size: 14px; text-decoration: none; }
+/* На телефоні в блоці — 4 картки (два ряди) */
+@media (max-width: 520px) { .home-block .grid > :nth-child(n+5) { display: none; } }
