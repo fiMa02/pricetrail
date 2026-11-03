@@ -115,7 +115,8 @@ async function loadCities() {
   state.cities = await fetch('data/cities.json').then((r) => r.json());
   const saved = store.get('city');
   state.city = state.cities.find((c) => c.slug === saved) || state.cities.find((c) => c.slug === 'kyiv') || state.cities[0];
-  $('#city').innerHTML = state.cities
+  $('#city').innerHTML = [...state.cities]
+    .sort((a, b) => a.name.localeCompare(b.name, 'uk'))
     .map((c) => `<option value="${c.slug}"${c === state.city ? ' selected' : ''}>${esc(c.name)}</option>`)
     .join('');
   initCityMenu();
