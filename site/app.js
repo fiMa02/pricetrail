@@ -729,7 +729,8 @@ function todayData() {
     ['up', '↑ Подорожчало', rows.filter((r) => r.c.to > r.c.from && !r.c.fromOld && !r.c.toOld).sort((a, b) => pctChange(b.c) - pctChange(a.c))],
     // Акція з'явилась або змінились її умови (інша акційна ціна) — від найбільшої знижки.
     ['sale', '% Нові акції', rows.filter((r) => r.kind === 'sale' || (r.c.fromOld && r.c.toOld)).sort((a, b) => discount(b.p) - discount(a.p))],
-    // Від найбільшої колишньої знижки.
+    // Нові акції, де ціна не нижча (з допуском), ніж на попередній акції за 30 днів до цієї.
+    ['repeat', '🔁 Повторні акції', rows.filter((r) => (r.kind === 'sale' || (r.c.fromOld && r.c.toOld)) && r.p.min30Sale && dishonest(r.p)).sort((a, b) => discount(b.p) - discount(a.p))],
     // Акція закінчилась і ціна змінилась (зазвичай повернулась до звичайної) — від найбільшої колишньої знижки.
     ['saleEnd', '⌛ Акція закінчилась', rows.filter((r) => r.kind === 'saleEnd' && r.c.to !== r.c.from && r.c.to <= r.c.fromOld).sort(bySaleWas)],
     // Після акції ціна вища, ніж «ціна до знижки» під час акції, — фактичне подорожчання. Від найбільшого.
@@ -755,6 +756,7 @@ function todayBanner() {
     part('down', '↓', plural(n('down'), 'товар подешевшав', 'товари подешевшали', 'товарів подешевшало'), 'tb__down', false),
     part('up', '↑', plural(n('up'), 'товар подорожчав', 'товари подорожчали', 'товарів подорожчало'), 'tb__up', false),
     part('sale', '%', plural(n('sale'), 'нова акція', 'нові акції', 'нових акцій')),
+    part('repeat', '🔁', plural(n('repeat'), 'повторна акція', 'повторні акції', 'повторних акцій')),
     part('saleEnd', '⌛', plural(n('saleEnd'), 'акція закінчилась', 'акції закінчились', 'акцій закінчилось')),
     part('saleUp', '⇧', 'дорожче, ніж до акції', 'tb__up'),
     part('saleKept', '＝', 'без зміни ціни після акції'),
@@ -807,9 +809,9 @@ function renderToday(tab) {
   const tile = (r) =>
     card(
           r.p,
-          // У «Нові акції» стара ціна вже видна закресленою — позначка «було» там зайва.
+          // У «Нові акції» і «Повторні акції» стара ціна вже видна закресленою — позначка «було» там зайва.
           // У «Дорожче, ніж до акції» «було» — це ціна до знижки, з якою й порівнюємо.
-          cur[0] === 'saleUp' ? r.c.fromOld : r.c && r.c.to !== r.c.from && cur[0] !== 'sale' ? r.c.from : undefined,
+          cur[0] === 'saleUp' ? r.c.fromOld : r.c && r.c.to !== r.c.from && cur[0] !== 'sale' && cur[0] !== 'repeat' ? r.c.from : undefined,
           cur[0] === 'saleUp'
             ? `<span class="tag tag--warn tag--wrap" title="Під час акції: ${fmtPrice(r.c.from)} грн замість ${fmtPrice(r.c.fromOld)} грн; тепер ${fmtPrice(r.c.to)} грн"><span>⇧ Була акція −${pct(r.c.from, r.c.fromOld)}%</span> <span>${fmtPrice(r.c.from)} грн</span></span>`
             : r.kind === 'saleEnd' && (cur[0] === 'saleEnd' || cur[0] === 'saleKept')
