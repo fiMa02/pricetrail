@@ -311,6 +311,7 @@ async function loadData() {
   if (filters.group && !groups.has(filters.group)) filters.group = '';
   fillCategories();
   syncFavs();
+  syncCart();
 }
 
 // Підкатегорії лише вибраного розділу.
@@ -552,6 +553,230 @@ function bindFavTarget(p) {
   };
 }
 
+// ---------- Список покупок ----------
+// cart[id] = { q: кількість (шт або кг), done: куплено, name, img, unit } — зберігається в браузері.
+// Ціни беремо поточні: у вибраному місті (state.byId) і в інших містах (data/compare).
+
+const BAG = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 8h14l-1.2 11.1a2 2 0 0 1-2 1.9H8.2a2 2 0 0 1-2-1.9L5 8Z"/><path d="M9 8V6.5a3 3 0 0 1 6 0V8"/></svg>';
+let cart = {};
+try {
+  cart = JSON.parse(store.get('cart') || '{}');
+} catch {}
+const inCart = (id) => id in cart;
+// Вагові товари — кроком 0,1 кг, решта — поштучно.
+const qtyStep = (unit) => (unit === 'кг' ? 0.1 : 1);
+const fmtQty = (q, unit) => `${String(+q.toFixed(2)).replace('.', ',')} ${unit === 'кг' ? 'кг' : 'шт'}`;
+
+function saveCart() {
+  store.set('cart', JSON.stringify(cart));
+  updateCartBadge();
+}
+
+function toggleCart(p) {
+  if (inCart(p.id)) delete cart[p.id];
+  else cart[p.id] = { q: qtyStep(p.unit) === 1 ? 1 : 0.5, done: false, name: p.name, img: p.img, unit: p.unit };
+  saveCart();
+}
+
+function syncCart() {
+  for (const [id, c] of Object.entries(cart)) {
+    const p = state.byId.get(+id);
+    if (p) Object.assign(c, { name: p.name, img: p.img, unit: p.unit });
+  }
+  saveCart();
+}
+
+function updateCartBadge() {
+  const n = Object.values(cart).filter((c) => !c.done).length;
+  const el = $('#cartN');
+  el.textContent = n;
+  el.hidden = !n;
+  $('#cartLink').setAttribute('aria-label', n ? `Список покупок: ${n}` : 'Список покупок');
+}
+
+const cartBtn = (p) =>
+  `<button class="cart-btn" data-cart="${p.id}" aria-pressed="${inCart(p.id)}" aria-label="${inCart(p.id) ? 'Прибрати зі списку покупок' : 'Додати до списку покупок'}">${BAG}</button>`;
+const cartToggle = (p) =>
+  `<button class="btn cart-toggle" data-cart="${p.id}" aria-pressed="${inCart(p.id)}">${BAG}${inCart(p.id) ? 'У списку покупок' : 'До списку покупок'}</button>`;
+
+let cartFrom = '#/';
+function renderCart() {
+  document.querySelector('.top').classList.add('is-product');
+  document.title = 'Список покупок — PriceTrail';
+  const ids = Object.keys(cart).map(Number);
+  let html = `${backLink(cartFrom)}<h1 class="page-title">Список покупок</h1>`;
+  if (!ids.length) {
+    app.innerHTML = `${html}<div class="empty"><b>🛍</b>Список порожній<br><span class="note">Натисніть кошик на картці товару — і тут з'явиться сума покупки та порівняння з іншими містами</span></div>`;
+    return;
+  }
+  const items = ids
+    .map((id) => ({ id, c: cart[id], p: state.byId.get(id) }))
+    .sort((a, b) => a.c.done - b.c.done || a.c.name.localeCompare(b.c.name, 'uk'));
+  const priced = items.filter((x) => x.p);
+  const total = priced.reduce((s, x) => s + x.p.price * x.c.q, 0);
+  const left = priced.filter((x) => !x.c.done).reduce((s, x) => s + x.p.price * x.c.q, 0);
+  const elsewhere = priced.filter((x) => x.p.from).length;
+  const missing = items.length - priced.length;
+  const row = ({ id, c, p }) => `<div class="cart-row${c.done ? ' is-done' : ''}">
+      <label class="cart-row__check" title="${c.done ? 'Повернути в список' : 'Позначити купленим'}"><input type="checkbox" data-done="${id}"${c.done ? ' checked' : ''}><span aria-hidden="true"></span></label>
+      <img src="${esc(c.img)}" alt="" loading="lazy">
+      <div class="cart-row__main">
+        <a href="#/p/${id}" class="cart-row__name">${esc(c.name)}</a>
+        <span class="note">${
+          p
+            ? `${fmtPrice(p.price)} грн/${esc(p.unit)}${p.oldPrice ? ' · акція' : ''}${p.from ? ` · ціна з міста ${esc(cityName(p.from))}` : ''}`
+            : 'немає в каталозі'
+        }</span>
+      </div>
+      <div class="cart-row__qty">
+        <button data-qty="${id}" data-d="-1" aria-label="Менше">−</button><span>${fmtQty(c.q, c.unit)}</span><button data-qty="${id}" data-d="1" aria-label="Більше">+</button>
+      </div>
+      <b class="cart-row__sum">${p ? fmtPrice(p.price * c.q) : '—'}</b>
+      <button class="cart-row__del" data-uncart="${id}" aria-label="Прибрати зі списку">×</button>
+    </div>`;
+  const notes = [
+    elsewhere && `${elsewhere} ${plural(elsewhere, 'товару', 'товарів', 'товарів')} немає у вибраному місті — порахована ціна з іншого міста`,
+    missing && `${missing} ${plural(missing, 'товару', 'товарів', 'товарів')} немає в каталозі — не враховано`,
+  ].filter(Boolean);
+  html += `<div class="panel cart">
+      <div class="cart-rows">${items.map(row).join('')}</div>
+      <div class="cart-total">
+        <span>Разом у місті ${esc(state.city.name)}</span><b>${fmtPrice(total)} грн</b>
+        ${left !== total ? `<span class="note">Ще купити: ${fmtPrice(left)} грн</span>` : ''}
+      </div>
+      ${notes.length ? `<p class="note">${notes.join('; ')}.</p>` : ''}
+      <div class="cart-actions">
+        ${items.some((x) => x.c.done) ? '<button id="cartClearDone">Прибрати куплене</button>' : ''}
+        <button id="cartClear">Очистити список</button>
+      </div>
+    </div>
+    <section class="panel" id="cartCompare"><div class="panel__head"><h2>Цей список в інших містах</h2></div><div class="sk" style="height:120px;border-radius:12px"></div></section>`;
+  // Зміна кількості перемальовує сторінку — лишаємось на тому самому місці.
+  const y = scrollY;
+  app.innerHTML = html;
+  scrollTo(0, y);
+  renderCartCompare($('#cartCompare'), priced);
+}
+
+// Список в інших містах (data/compare): кожне місто порівнюємо з вибраним за товарами, що є в обох;
+// скільки товарів у місті бракує — пишемо поруч. Сума — за тими товарами, що там є.
+async function renderCartCompare(el, priced) {
+  const prices = await Promise.all(priced.map((x) => loadCompare(x.id)));
+  if (!el.isConnected) return;
+  const one = (v) => (Array.isArray(v) ? v[0] : v);
+  const mine = state.city.slug;
+  const rows = state.cities
+    .filter((c) => c.slug !== mine)
+    .map((city) => {
+      let sum = 0;
+      let both = 0;
+      let bothHere = 0;
+      let lack = 0;
+      priced.forEach((x, i) => {
+        const v = prices[i][city.slug];
+        if (v == null) return lack++;
+        sum += one(v) * x.c.q;
+        const h = prices[i][mine];
+        if (h != null) {
+          both += one(v) * x.c.q;
+          bothHere += one(h) * x.c.q;
+        }
+      });
+      return { city, sum, lack, d: bothHere ? (both / bothHere - 1) * 100 : null };
+    })
+    .filter((r) => r.d != null)
+    .sort((a, b) => a.d - b.d || a.lack - b.lack);
+  if (!rows.length) {
+    el.innerHTML = '<div class="panel__head"><h2>Цей список в інших містах</h2></div><p class="note">Порівняти немає з чим: товарів зі списку немає в інших містах або у вибраному.</p>';
+    return;
+  }
+  const lo = rows[0].d;
+  const hi = rows.at(-1).d;
+  const pos = (v) => (hi > lo ? ((v - lo) / (hi - lo)) * 100 : 50);
+  const diff = (d) =>
+    Math.abs(d) < 0.5
+      ? '<span class="crow__diff">так само</span>'
+      : `<span class="crow__diff crow__diff--${d < 0 ? 'down' : 'up'}">${d < 0 ? '−' : '+'}${Math.abs(d) < 1 ? '<1' : Math.round(Math.abs(d))}%</span>`;
+  const line = (r) => `<div class="crow">
+      <span class="crow__city">${esc(r.city.name)}${r.lack ? ` <small class="note">без ${r.lack}</small>` : ''}</span>
+      <span class="crow__track" aria-hidden="true"><i style="left:${pos(r.d).toFixed(1)}%"></i></span>
+      <span class="crow__price">${fmtPrice(r.sum)}</span>${diff(r.d)}
+    </div>`;
+  // Найдешевше — серед міст, де бракує найменше товарів (rows уже впорядковані за відсотком).
+  const fewest = Math.min(...rows.map((r) => r.lack));
+  const best = rows.find((r) => r.lack === fewest);
+  const same = rows.every((r) => Math.abs(r.d) < 0.5);
+  const summary = same
+    ? `У всіх ${rows.length + 1} містах ціни на цей список однакові.`
+    : best.d < -0.5
+      ? `Найдешевше — у місті ${esc(best.city.name)}: на <b>${Math.round(-best.d) || '<1'}%</b> менше, ніж у місті ${esc(state.city.name)}${best.lack ? ` (без ${best.lack} ${plural(best.lack, 'товару', 'товарів', 'товарів')})` : ''}.`
+      : `У місті ${esc(state.city.name)} цей список не дорожчий, ніж деінде.`;
+  // Перші 8 — найдешевші; решта згорнута.
+  const TOP = 8;
+  el.innerHTML = `<div class="panel__head"><h2>Цей список в інших містах</h2></div>
+    <p class="compare__summary">${summary}</p>
+    ${
+      same
+        ? ''
+        : `<div class="crows">${rows.slice(0, TOP).map(line).join('')}</div>${
+            rows.length > TOP ? `<details class="compare__list"><summary>Ще ${rows.length - TOP} ${plural(rows.length - TOP, 'місто', 'міста', 'міст')}</summary><div class="crows">${rows.slice(TOP).map(line).join('')}</div></details>` : ''
+          }`
+    }
+    <p class="note">${same ? '' : `Відсоток — порівняння з містом ${esc(state.city.name)} за товарами, що є в обох містах; «без N» — стільки товарів зі списку в місті немає, сума — без них. `}Ціни за ${fmtDate(parseDate(state.meta.updated))}, по одному магазину в кожному місті, з урахуванням поточних акцій.</p>`;
+}
+
+function bindCart() {
+  app.addEventListener('click', (e) => {
+    const t = e.target.closest('[data-cart], [data-qty], [data-uncart], #cartClear, #cartClearDone');
+    if (!t) return;
+    if (t.dataset.cart) {
+      // Кнопка на картці (картка — посилання, тож не даємо перейти) або на сторінці товару.
+      e.preventDefault();
+      e.stopPropagation();
+      const p = state.byId.get(Number(t.dataset.cart));
+      if (!p) return;
+      toggleCart(p);
+      if (t.classList.contains('cart-toggle')) t.outerHTML = cartToggle(p);
+      else {
+        t.setAttribute('aria-pressed', inCart(p.id));
+        t.setAttribute('aria-label', inCart(p.id) ? 'Прибрати зі списку покупок' : 'Додати до списку покупок');
+      }
+      return;
+    }
+    if (t.dataset.qty) {
+      const c = cart[t.dataset.qty];
+      const step = qtyStep(c.unit);
+      c.q = Math.round((c.q + step * Number(t.dataset.d)) * 100) / 100;
+      if (c.q < step / 2) delete cart[t.dataset.qty];
+    } else if (t.dataset.uncart) delete cart[t.dataset.uncart];
+    else if (t.id === 'cartClearDone') {
+      for (const [id, c] of Object.entries(cart)) if (c.done) delete cart[id];
+    } else if (t.id === 'cartClear') {
+      // Без системного confirm(): друге натискання протягом 3 секунд підтверджує.
+      if (!t.dataset.sure) {
+        t.dataset.sure = '1';
+        t.textContent = 'Точно очистити?';
+        setTimeout(() => {
+          if (!t.isConnected) return;
+          t.textContent = 'Очистити список';
+          delete t.dataset.sure;
+        }, 3000);
+        return;
+      }
+      cart = {};
+    }
+    saveCart();
+    renderCart();
+  });
+  app.addEventListener('change', (e) => {
+    const id = e.target.dataset?.done;
+    if (!id || !cart[id]) return;
+    cart[id].done = e.target.checked;
+    saveCart();
+    renderCart();
+  });
+}
+
 // ---------- Фільтри ----------
 
 const filters = { q: '', group: '', cat: '', sort: 'name', sale: false, card: false, inflated: false, local: false, low: false };
@@ -574,7 +799,7 @@ function applyFilters() {
     sessionStorage.setItem('filters', JSON.stringify(filters));
   } catch {}
   state.shown = PAGE;
-  if (location.hash.startsWith('#/p/') || location.hash === '#/fav' || location.hash.startsWith('#/today')) location.hash = '#/';
+  if (location.hash.startsWith('#/p/') || location.hash === '#/fav' || location.hash === '#/list' || location.hash.startsWith('#/today')) location.hash = '#/';
   else renderList();
 }
 
@@ -691,6 +916,7 @@ function card(p, from, extra = '') {
       <img class="card__img" src="${esc(p.img)}" alt="" loading="lazy" decoding="async">
       <div class="card__corner">${p.from ? `<span class="elsewhere" title="Ціна з міста ${esc(cityName(p.from))} — найближчого, де є цей товар">Немає у вибраному місті</span>` : ''}${sale}</div>
       <button class="fav-btn" data-fav="${p.id}" aria-pressed="${isFav(p.id)}" aria-label="${isFav(p.id) ? 'Прибрати з обраного' : 'Додати в обране'}">${HEART}</button>
+      ${cartBtn(p)}
     </div>
     <div class="card__body">
       <div class="card__name">${esc(p.name)}</div>
@@ -1091,7 +1317,7 @@ async function renderProduct(id, slug) {
         ${p.cardPrice ? `<div class="atbcard atbcard--big">${CARD_ICON}<b>${fmtPrice(p.cardPrice)} грн</b> при оплаті карткою АТБ <span class="note">(−${pct(p.cardPrice, p.price)}%)</span></div>` : ''}
         ${honestBox(p)}
         <div id="warn"></div>
-        <div class="product__actions"><span class="fav-actions">${favActions(p)}</span><a class="btn btn--primary" href="https://www.atbmarket.com${esc(p.url)}" target="_blank" rel="noopener">Відкрити на atbmarket.com ↗</a></div>
+        <div class="product__actions"><span class="fav-actions">${favActions(p)}</span>${cartToggle(p)}<a class="btn btn--primary" href="https://www.atbmarket.com${esc(p.url)}" target="_blank" rel="noopener">Відкрити на atbmarket.com ↗</a></div>
       </div>
     </div>
     <section class="panel">
@@ -1622,7 +1848,7 @@ let favFromBack = '#/';
 const backLink = (to = backTo) => {
   const p = to.startsWith('#/p/') && state.byId.get(parseInt(to.slice(4), 10));
   const name = p && (p.name.length > 40 ? `${p.name.slice(0, 38).trim()}…` : p.name);
-  const label = p ? name : to.startsWith('#/today') ? 'Що змінилося' : to === '#/fav' ? 'Обране' : 'Усі товари';
+  const label = p ? name : to.startsWith('#/today') ? 'Що змінилося' : to === '#/fav' ? 'Обране' : to === '#/list' ? 'Список покупок' : 'Усі товари';
   return `<a class="back" href="${esc(to)}">← ${esc(label)}</a>`;
 };
 
@@ -1642,6 +1868,11 @@ function route(e) {
   const restore = from?.startsWith('#/p/') || (from === '#/fav' && location.hash !== '#/fav') ? scrollMemo.get(pageKey(location.hash)) : null;
   const m = location.hash.match(/^#\/p\/(\d+)(?:\/([\w-]+))?/);
   const onFavs = location.hash === '#/fav';
+  const onCart = location.hash === '#/list';
+  // «Назад» зі списку покупок — туди, звідки його відкрили (але не на товар, відкритий зі списку).
+  if (onCart && from && from !== '#/list' && !(from.startsWith('#/p/') && backTo === '#/list')) cartFrom = from;
+  if (onCart) $('#cartLink').setAttribute('aria-current', 'page');
+  else $('#cartLink').removeAttribute('aria-current');
   if (onFavs) $('#favLink').setAttribute('aria-current', 'page');
   else $('#favLink').removeAttribute('aria-current');
   const today = location.hash.match(/^#\/today(?:\/(\w+))?/);
@@ -1650,6 +1881,10 @@ function route(e) {
     try {
       if (m) renderProduct(Number(m[1]), m[2]);
       else if (onFavs) renderFavs();
+      else if (onCart) {
+        scrollTo(0, 0);
+        renderCart();
+      }
       else if (today) renderToday(today[1]);
       else renderList();
     } catch (err) {
@@ -1667,6 +1902,7 @@ loadCities()
   .then(loadData)
   .then(() => {
     bindFilters();
+    bindCart();
     addEventListener('hashchange', route);
     route();
     favToast();
