@@ -1066,7 +1066,7 @@ async function loadCompare(id) {
   return (await compareShards.get(shard))[id] || {};
 }
 
-// Мапа: межі областей (geoBoundaries / OpenStreetMap, ODbL) у проєкції, з якою зберігали контури.
+// Мапа: межі областей (Natural Earth, суспільне надбання) у проєкції, з якою зберігали контури.
 let mapData;
 const loadMap = () => (mapData ||= fetch('data/ukraine.json').then((r) => r.json()));
 const mapXY = (m, c) => [(c.lon - m.lonMin) * m.k * m.cos, (m.latMax - c.lat) * m.k];
@@ -1224,7 +1224,7 @@ async function renderCompare(el, p) {
     <details class="compare__list"${map ? '' : ' open'}><summary>Показати списком (${rows.length} ${plural(rows.length, 'місто', 'міста', 'міст')})</summary>
       <div class="crows">${rows.map(row).join('')}</div>
     </details>
-    <p class="note">Ціни за ${fmtDate(parseDate(state.meta.updated))}, по одному магазину в кожному місті${absent ? `; у ${absent} містах товару немає в асортименті` : ''}. Натисніть місто, щоб перейти до нього.${map ? ' Межі: geoBoundaries / © OpenStreetMap (ODbL).' : ''}</p>`;
+    <p class="note">Ціни за ${fmtDate(parseDate(state.meta.updated))}, по одному магазину в кожному місті${absent ? `; у ${absent} містах товару немає в асортименті` : ''}. Натисніть місто, щоб перейти до нього.${map ? ' Межі: Natural Earth.' : ''}</p>`;
 
   const go = (slug) => {
     if (slug === state.city.slug) return;
