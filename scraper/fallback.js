@@ -1,12 +1,16 @@
 // Спільний каталог: вибір міста впливає лише на ціни.
 // site/data/cities/<місто>/extra.json — товари, яких у цьому місті немає, з цінами міста, де вони є
-// й відстежуються найдовше (з кількох таких — найближчого по прямій); поле from — slug того міста. Свої products.json міст не змінюються.
+// й відстежуються найдовше (з тих, що почали до TRACK_SLACK_DAYS пізніше, — найближчого по прямій); поле from — slug того міста. Свої products.json міст не змінюються.
 //
 //   node scraper/fallback.js — перебудувати з наявних products.json (парсер робить це сам після збору)
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { CITIES } from './cities.js';
+
+// Міста, де товар почали відстежувати не більше ніж на стільки днів пізніше, вважаємо рівними.
+const TRACK_SLACK_DAYS = 7;
+const DAY = 86400000;
 
 // Відстань між центрами міст, км (формула гаверсинусів).
 function distance(a, b) {
@@ -47,11 +51,13 @@ export async function buildFallback(dataDir) {
     for (const id of all) {
       if (own.has(id)) continue;
       // Спершу міста, де товар зараз у каталозі (якщо таких немає — де він лишився з позначкою out);
-      // з них — де він відстежується найдовше (довша історія цін), а серед рівних — найближче.
+      // з них — найближче серед тих, де він відстежується найдовше (з допуском TRACK_SLACK_DAYS).
       const has = nearest.filter((c) => catalogs.get(c.slug).has(id));
       const inStock = has.filter((c) => !catalogs.get(c.slug).get(id).out);
-      const since = (c) => tracked.get(c.slug).get(id) || '9999';
-      const src = (inStock.length ? inStock : has).reduce((best, c) => (since(c) < since(best) ? c : best));
+      const pool = inStock.length ? inStock : has;
+      const since = (c) => Date.parse(tracked.get(c.slug).get(id) || '9999-12-31');
+      const oldest = Math.min(...pool.map(since));
+      const src = pool.find((c) => since(c) - oldest <= TRACK_SLACK_DAYS * DAY);
       const { out, checked, ...p } = catalogs.get(src.slug).get(id);
       extra.push({ ...p, from: src.slug });
     }
