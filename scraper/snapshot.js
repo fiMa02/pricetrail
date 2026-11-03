@@ -1,11 +1,14 @@
-// Одноразовий знімок рівня цін у всіх містах АТБ — для мапи «Рівень цін у містах» на головній.
+// Знімок рівня цін у всіх містах АТБ — для мапи «Рівень цін у містах» на головній.
+// Оновлюється раз на тиждень (у неділю, після щоденного збору — див. scripts/daily.ps1), ≈45 хв.
 // У кожному місті беремо перший магазин зі списку й кілька розділів (вибірка, а не весь каталог);
 // наші щоденні міста беремо з їхніх products.json за тими самими розділами.
 //
-//   node scraper/snapshot.js <coords.json>   — зібрати (продовжує з місця зупинки) і порахувати
-//   node scraper/snapshot.js --build         — лише перерахувати site/data/levels.json із зібраного
+//   node scraper/snapshot.js --fresh   — зібрати все заново і порахувати (так запускає daily.ps1)
+//   node scraper/snapshot.js           — продовжити перерваний збір і порахувати
+//   node scraper/snapshot.js --build   — лише перерахувати site/data/levels.json із зібраного
 //
-// coords.json: { "Назва міста як на сайті АТБ": { lat, lon } } — координати пунктів, яких немає в cities.js.
+// scraper/coords.json: { "Назва міста як на сайті АТБ": { lat, lon } } — координати пунктів, яких немає в cities.js
+// (з GeoNames). Нові міста АТБ без координат пропускаються — скрипт виписує їх, щоб додати вручну.
 // Сирі ціни — у .scratch/snapshot/<id міста АТБ>.json; результат — site/data/levels.json:
 //   { date, cities: [{ name, slug?, lat, lon, v, n }] } — v: на скільки % дорожче за середнє, n: товарів у вибірці.
 import * as cheerio from 'cheerio';
@@ -16,6 +19,7 @@ import { CITIES } from './cities.js';
 import { BASE, curl, sleep, DELAY_MS, parseCityIds, getCityStores, scrapeCategory } from './scrape.js';
 
 const RAW_DIR = path.resolve('.scratch/snapshot');
+const COORDS = path.resolve('scraper/coords.json');
 const OUT = path.resolve('site/data/levels.json');
 const PARALLEL = 5;
 // Розділи вибірки й відповідні їм групи в products.json наших міст.
@@ -31,15 +35,19 @@ const MIN_COMMON = 150; // пари міст з меншою кількістю 
 // Пункти, які на мапі опинялись не там (однойменні села в інших областях), — не показуємо й не рахуємо.
 const EXCLUDE = new Set(['Новоолександрівка', 'Калинівка']);
 
-async function collect(coordsFile) {
-  const coords = JSON.parse(await fs.readFile(coordsFile, 'utf8'));
+async function collect(fresh) {
+  const coords = JSON.parse(await fs.readFile(COORDS, 'utf8'));
   const ours = new Set(CITIES.map((c) => c.name));
+  if (fresh) await fs.rm(RAW_DIR, { recursive: true, force: true });
   await fs.mkdir(RAW_DIR, { recursive: true });
   const jar = path.join(await fs.mkdtemp(path.join(os.tmpdir(), 'atb-')), 'cookies.txt');
   const $ = cheerio.load(await curl(BASE + '/', { jar }));
   const session = { jar, csrf: $('meta[name="csrf-token"]').attr('content') };
   const done = new Set((await fs.readdir(RAW_DIR)).map((f) => f.replace('.json', '')));
-  const queue = [...parseCityIds($)].filter(([name, id]) => !ours.has(name) && coords[name] && !done.has(id));
+  const all = [...parseCityIds($)].filter(([name]) => !ours.has(name) && !EXCLUDE.has(name) && name !== 'Місто');
+  const noCoords = all.filter(([name]) => !coords[name]).map(([name]) => name);
+  if (noCoords.length) console.warn(`Без координат (пропущено, додайте в scraper/coords.json): ${noCoords.join(', ')}`);
+  const queue = all.filter(([name, id]) => coords[name] && !done.has(id));
   console.log(`До збору: ${queue.length} міст (уже зібрано ${done.size})`);
   const started = Date.now();
   let n = 0;
@@ -68,8 +76,8 @@ async function collect(coordsFile) {
   );
 }
 
-async function build(coordsFile) {
-  const coords = coordsFile ? JSON.parse(await fs.readFile(coordsFile, 'utf8')) : {};
+async function build() {
+  const coords = JSON.parse(await fs.readFile(COORDS, 'utf8'));
   const cities = [];
   // Наші щоденні міста — з останнього збору, за тими самими розділами.
   const groups = new Set(Object.values(SAMPLE));
@@ -120,8 +128,5 @@ async function build(coordsFile) {
 }
 
 const args = process.argv.slice(2);
-if (args[0] === '--build') await build(args[1]);
-else {
-  await collect(args[0]);
-  await build(args[0]);
-}
+if (!args.includes('--build')) await collect(args.includes('--fresh'));
+await build();

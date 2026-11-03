@@ -22,6 +22,7 @@ $started = Get-Date
 $ok = $false
 $result = ''
 $scrapeOut = @()
+$snapNote = ''
 
 # Короткий звіт на робочому столі після кожного запуску (перезаписується).
 function Write-StatusFile {
@@ -55,6 +56,7 @@ function Write-StatusFile {
         $result
     )
     if ($done) { $lines += $done }
+    if ($snapNote) { $lines += $snapNote }
     if ($sum.cities) {
         $lines += "Зміни за сьогодні (міст: $($sum.cities)): подешевшало $($sum.down), подорожчало $($sum.up), нових акцій $($sum.sale), акцій закінчилось $($sum.saleEnd), після акції дорожче, ніж до неї, $($sum.saleUp), після акції ціна та сама $($sum.saleKept), нових товарів $($sum.added)"
     }
@@ -77,6 +79,18 @@ try {
     # Виводимо в журнал і водночас запам'ятовуємо — для звіту на робочому столі.
     $scrapeOut = @(npm run scrape | ForEach-Object { Write-Host $_; $_ })
     if ($LASTEXITCODE -ne 0) { throw "Збір цін завершився з кодом $LASTEXITCODE" }
+    # Раз на тиждень (у неділю) — знімок рівня цін у всіх містах АТБ для мапи на головній (≈45 хв).
+    # Його збій не зриває щоденну публікацію: на мапі лишається знімок минулого тижня.
+    if ($started.DayOfWeek -eq [DayOfWeek]::Sunday) {
+        Write-Host '== Знімок рівня цін (щотижня)'
+        try {
+            $snapOut = @(node scraper/snapshot.js --fresh | ForEach-Object { Write-Host $_; $_ })
+            $snapNote = if ($LASTEXITCODE -eq 0) { "Мапа рівня цін оновлена: $($snapOut | Where-Object { $_ -match '^levels.json' } | Select-Object -Last 1)" } else { "Мапа рівня цін: ПОМИЛКА (код $LASTEXITCODE), лишився знімок минулого тижня" }
+        } catch {
+            $snapNote = "Мапа рівня цін: ПОМИЛКА ($_), лишився знімок минулого тижня"
+        }
+        Write-Host $snapNote
+    }
     Invoke-Step 'git add' { git add site/data }
     git diff --cached --quiet
     if ($LASTEXITCODE -ne 0) {
