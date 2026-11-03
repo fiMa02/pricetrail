@@ -1043,7 +1043,8 @@ const BETA = (() => {
 const isHome = () => BETA && (location.hash === '' || location.hash === '#/' || location.hash === '#');
 const HOME_BLOCK = 8;
 
-// Мапа на бета-головній: на скільки % у кожному місті дорожче чи дешевше, ніж у вибраному (data/compare/index.json).
+// Мапа на бета-головній: на скільки % у кожному місті дорожче чи дешевше за середній рівень цін по всіх містах
+// (avg у data/compare/index.json); не залежить від вибраного міста — воно лише виділене.
 let priceIndex;
 const loadIndex = () => (priceIndex ||= fetch('data/compare/index.json').then((r) => (r.ok ? r.json() : null)).catch(() => null));
 const fmtPct = (v) => `${v > 0 ? '+' : v < 0 ? '−' : ''}${String(Math.abs(v).toFixed(1)).replace('.', ',')}%`;
@@ -1051,18 +1052,17 @@ const fmtPct = (v) => `${v > 0 ? '+' : v < 0 ? '−' : ''}${String(Math.abs(v).t
 async function renderHomeMap(el) {
   const [idx, map] = await Promise.all([loadIndex(), loadMap().catch(() => null)]);
   if (!el.isConnected) return;
-  const me = idx?.cities.indexOf(state.city.slug) ?? -1;
-  if (!map || me < 0) return el.remove();
+  if (!map || !idx?.avg) return el.remove();
   const at = new Map(idx.cities.map((slug, i) => [slug, i]));
   const rows = new Map();
   for (const c of state.cities) {
     const i = at.get(c.slug);
-    if (i != null && idx.n[i][me] >= 300) rows.set(c, { v: idx.d[i][me], n: idx.n[i][me] });
+    if (i != null) rows.set(c, { v: idx.avg[i] });
   }
   const vals = [...rows.values()].map((r) => r.v);
   const lo = Math.min(...vals);
   const hi = Math.max(...vals);
-  // Шкала симетрична відносно вибраного міста: зелений — дешевше, сірий — так само, червоний — дорожче.
+  // Шкала симетрична відносно середнього: зелений — дешевше, сірий — як у середньому, червоний — дорожче.
   const span = Math.max(-lo, hi, 0.5);
   const tone = (v) =>
     v <= 0
@@ -1070,10 +1070,10 @@ async function renderHomeMap(el) {
       : `color-mix(in oklab, var(--sale) ${Math.round(Math.min(1, v / span) * 100)}%, var(--map-mid))`;
   const pts = state.cities.filter((c) => c.lat != null).map((c) => ({ c, r: rows.get(c), xy: mapXY(map, c) }));
   const here = rows.get(state.city);
-  const labels = placeLabels(pts, here, map, (c, r) => Math.max(c.name.length * 7.2, (r === here ? 7 : fmtPct(r.v).length) * 9.5));
+  const labels = placeLabels(pts, here, map, (c, r) => Math.max(c.name.length * 7.2, fmtPct(r.v).length * 9.5));
   const sums = new Map();
   for (const { r, xy } of pts) {
-    if (!r || r === here) continue;
+    if (!r) continue;
     const i = regionAt(map, xy);
     const s = sums.get(i) || [0, 0];
     sums.set(i, [s[0] + r.v, s[1] + 1]);
@@ -1083,21 +1083,20 @@ async function renderHomeMap(el) {
       if (!r) return '';
       const lb = labels.get(c);
       const text = lb
-        ? `<text class="mcity__label" x="${lb[0]}" y="${lb[1]}" text-anchor="${lb[2]}"><tspan class="mcity__name" x="${lb[0]}">${esc(c.name)}</tspan><tspan class="mcity__price" x="${lb[0]}" dy="17">${r === here ? 'ваше місто' : fmtPct(r.v)}</tspan></text>`
+        ? `<text class="mcity__label" x="${lb[0]}" y="${lb[1]}" text-anchor="${lb[2]}"><tspan class="mcity__name" x="${lb[0]}">${esc(c.name)}</tspan><tspan class="mcity__price" x="${lb[0]}" dy="17">${fmtPct(r.v)}</tspan></text>`
         : '';
-      return `<g class="mcity${r === here ? ' is-here' : ''}" data-city="${c.slug}" transform="translate(${x.toFixed(1)} ${y.toFixed(1)})" style="--tone:${r === here ? 'var(--accent)' : tone(r.v)}">
+      return `<g class="mcity${r === here ? ' is-here' : ''}" data-city="${c.slug}" transform="translate(${x.toFixed(1)} ${y.toFixed(1)})" style="--tone:${tone(r.v)}">
           ${r === here ? '<circle class="mcity__ring" r="15"/>' : ''}<circle class="mcity__dot" r="9"/>${text}</g>`;
     })
     .join('');
-  const others = [...rows.entries()].filter(([c]) => c !== state.city).sort((a, b) => a[1].v - b[1].v);
-  const [cheap, cheapR] = others[0] || [];
-  const [dear, dearR] = others.at(-1) || [];
-  el.innerHTML = `<div class="panel__head"><h2>Ціни в містах порівняно з містом ${esc(state.city.name)}</h2></div>
-    ${
-      cheap
-        ? `<p class="compare__summary">Найдешевше — ${esc(cheap.name)} (${fmtPct(cheapR.v)}), найдорожче — ${esc(dear.name)} (${fmtPct(dearR.v)}).</p>`
-        : ''
-    }
+  const sorted = [...rows.entries()].sort((a, b) => a[1].v - b[1].v);
+  const [cheap, cheapR] = sorted[0];
+  const [dear, dearR] = sorted.at(-1);
+  const verdict = (v) => (Math.abs(v) < 0.5 ? 'приблизно як у середньому' : `на ${fmtPct(v).slice(1)} ${v < 0 ? 'дешевше' : 'дорожче'} за середнє`);
+  el.innerHTML = `<div class="panel__head"><h2>Рівень цін у містах</h2></div>
+    <p class="compare__summary">Найдешевше — ${esc(cheap.name)} (${fmtPct(cheapR.v)}), найдорожче — ${esc(dear.name)} (${fmtPct(dearR.v)}).${
+      here ? ` У місті ${esc(state.city.name)} — ${verdict(here.v)}.` : ''
+    }</p>
     <div class="umap">
       <svg viewBox="0 0 ${map.w} ${map.h}" role="img" aria-label="Мапа: різниця цін між містами">
         <g class="umap__regions">${map.regions
@@ -1114,16 +1113,13 @@ async function renderHomeMap(el) {
       <span class="umap__scale"><b>${fmtPct(-span)}</b><i aria-hidden="true"></i><b>${fmtPct(span)}</b></span>
       <span><i class="lg-here" aria-hidden="true"></i>ваше місто</span>
     </div>
-    <p class="note">Середня різниця поточних цін (з акціями) на товари, що є в обох містах; по одному магазину в кожному місті. Колір області — середнє її міст.</p>`;
+    <p class="note">Відсоток — на скільки поточні ціни (з акціями) у місті вищі чи нижчі за середні по ${rows.size} містах, за товарами, які є в кількох містах одночасно; по одному магазину в кожному місті. Колір області — середнє її міст.</p>`;
   const svg = el.querySelector('svg');
   const tip = el.querySelector('.umap__tip');
   const show = (g) => {
     const c = state.cities.find((x) => x.slug === g.dataset.city);
     const r = rows.get(c);
-    tip.innerHTML =
-      r === here
-        ? `<b>${esc(c.name)}</b><br>ваше місто`
-        : `<b>${esc(c.name)}</b><br>${Math.abs(r.v) < 0.05 ? 'так само' : `на ${fmtPct(r.v).slice(1)} ${r.v < 0 ? 'дешевше' : 'дорожче'}`}<br><span class="note">за ${r.n.toLocaleString('uk')} спільними товарами</span>`;
+    tip.innerHTML = `<b>${esc(c.name)}</b>${r === here ? ' (ваше місто)' : ''}<br>${verdict(r.v)}`;
     tip.hidden = false;
     const box = el.querySelector('.umap').getBoundingClientRect();
     const dot = g.querySelector('.mcity__dot').getBoundingClientRect();

@@ -2,7 +2,8 @@
 // site/data/compare/NN.json (розбито за id % 100): { id: { місто: ціна | [ціна, ціна_до_знижки] } }.
 // site/data/compare/index.json — загальна різниця цін між містами (для мапи на головній):
 //   { cities: [slug…], d: [[%…]…], n: [[кількість…]…] } — d[i][j]: на скільки % у місті i дорожче, ніж у j,
-//   за спільними товарами (середнє геометричне співвідношення поточних цін); n[i][j] — скільки спільних товарів.
+//   за спільними товарами (середнє геометричне співвідношення поточних цін); n[i][j] — скільки спільних товарів;
+//   avg[i] — на скільки % у місті i дорожче за середній рівень цін по всіх містах (не залежить від вибраного міста).
 //
 //   node scraper/compare.js — перебудувати з наявних products.json (парсер робить це сам після збору)
 import fs from 'node:fs/promises';
@@ -46,6 +47,7 @@ function priceIndex(prices) {
   const logs = cities.map((c) => new Map([...prices.get(c)].map(([id, v]) => [id, Math.log(v)])));
   const d = cities.map(() => []);
   const n = cities.map(() => []);
+  const g = cities.map(() => []); // логарифм співвідношення цін
   for (let i = 0; i < cities.length; i++) {
     d[i][i] = 0;
     n[i][i] = logs[i].size;
@@ -58,13 +60,29 @@ function priceIndex(prices) {
         sum += a - b;
         k++;
       }
-      const g = k ? sum / k : 0;
-      d[i][j] = Math.round((Math.exp(g) - 1) * 1000) / 10;
-      d[j][i] = Math.round((Math.exp(-g) - 1) * 1000) / 10;
+      const v = k ? sum / k : 0;
+      g[i][j] = v;
+      g[j][i] = -v;
+      d[i][j] = Math.round((Math.exp(v) - 1) * 1000) / 10;
+      d[j][i] = Math.round((Math.exp(-v) - 1) * 1000) / 10;
       n[i][j] = n[j][i] = k;
     }
   }
-  return { cities, d, n };
+  // Рівень цін міста: середня різниця з усіма іншими містами (вага — кількість спільних товарів),
+  // зсунута так, щоб середнє по містах було 0.
+  const level = cities.map((_, i) => {
+    let sum = 0;
+    let w = 0;
+    for (let j = 0; j < cities.length; j++) {
+      if (j === i || n[i][j] < 300) continue;
+      sum += g[i][j] * n[i][j];
+      w += n[i][j];
+    }
+    return w ? sum / w : 0;
+  });
+  const mean = level.reduce((a, b) => a + b, 0) / level.length;
+  const avg = level.map((l) => Math.round((Math.exp(l - mean) - 1) * 1000) / 10);
+  return { cities, d, n, avg };
 }
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
