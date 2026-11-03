@@ -382,6 +382,7 @@ select {
 }
 .crow:hover { background: var(--surface-2); }
 .crow.is-here { background: var(--accent-soft); cursor: default; }
+.crow.is-shown { background: var(--surface-2); cursor: default; }
 .crow__city { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .crow.is-here .crow__city { font-weight: 700; }
 .crow__track { position: relative; height: 4px; border-radius: 2px; background: var(--grid); margin-inline: 5px; }
@@ -414,6 +415,9 @@ select {
 .mcity__pct--down { fill: var(--good); }
 .mcity__pct--up { fill: var(--sale); }
 .mcity.is-here .mcity__name { fill: var(--accent); font-weight: 700; }
+/* Місто, ціни якого відкрито на картці (не вибране): кільце пунктиром */
+.mcity.is-shown .mcity__ring { stroke: var(--ink-2); stroke-dasharray: 5 4; }
+.mcity.is-shown .mcity__name { fill: var(--ink); font-weight: 700; }
 .umap__tip { transform: translate(-50%, -100%); white-space: normal; text-align: center; min-width: 120px; }
 .umap__tip .crow__diff--down { color: color-mix(in oklab, var(--good) 60%, var(--bg)); }
 .umap__tip .crow__diff--up { color: color-mix(in oklab, var(--sale) 60%, var(--bg)); }

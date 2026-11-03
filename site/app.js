@@ -985,10 +985,38 @@ function labelsHtml(p) {
     .join('');
 }
 
-async function renderProduct(id) {
+// Картка товару в іншому місті (#/p/<id>/<місто>) — з мапи «Ціна в інших містах»; вибране місто не змінюється.
+const cityCatalogs = new Map();
+async function cityProduct(slug, id) {
+  if (!cityCatalogs.has(slug)) {
+    cityCatalogs.set(
+      slug,
+      fetch(`data/cities/${slug}/products.json`)
+        .then((r) => r.json())
+        .then((list) => new Map(list.map((x) => [x.id, x])))
+        .catch(() => new Map()),
+    );
+  }
+  const base = (await cityCatalogs.get(slug)).get(id);
+  return base && { ...base, from: slug, _view: true, _per: perUnit(base) };
+}
+
+let productSeq = 0;
+async function renderProduct(id, slug) {
   document.querySelector('.top').classList.add('is-product');
-  const p = state.byId.get(id);
+  const seq = ++productSeq;
   scrollTo(0, 0);
+  let p = state.byId.get(id);
+  if (slug && slug !== state.city.slug) {
+    const own = p;
+    app.innerHTML = `${backLink()}<div class="sk" style="height:320px;border-radius:12px"></div>`;
+    p = await cityProduct(slug, id);
+    if (seq !== productSeq) return;
+    if (!p) {
+      app.innerHTML = `${backLink()}<p class="status">У місті ${esc(cityName(slug))} цього товару немає.${own ? ` <a href="#/p/${id}">Показати для міста ${esc(state.city.name)}</a>` : ''}</p>`;
+      return;
+    }
+  }
   if (!p) {
     app.innerHTML = `${backLink()}<p class="status">Товар не знайдено — можливо, його вже немає в каталозі.</p>`;
     return;
@@ -1000,7 +1028,13 @@ async function renderProduct(id) {
       <div>
         <h1>${esc(p.name)}</h1>
         <div class="chips">${[p.group, p.category, p.brand].filter(Boolean).map((c) => `<span class="chip">${esc(c)}</span>`).join('')}</div>
-        ${p.from ? `<p class="elsewhere-box">Цього товару немає в магазині АТБ у місті ${esc(state.city.name)}. Ціни та історія — з міста <b>${esc(cityName(p.from))}</b>, найближчого, де він є.</p>` : ''}
+        ${
+          p._view
+            ? `<p class="elsewhere-box">Ціни та історія — з міста <b>${esc(cityName(p.from))}</b>.${state.byId.has(id) ? ` <a href="#/p/${id}">Показати для міста ${esc(state.city.name)}</a>` : ''}</p>`
+            : p.from
+              ? `<p class="elsewhere-box">Цього товару немає в магазині АТБ у місті ${esc(state.city.name)}. Ціни та історія — з міста <b>${esc(cityName(p.from))}</b>, де він є.</p>`
+              : ''
+        }
         <div class="product__price">
           <span class="price ${p.oldPrice ? 'price--sale' : ''}">${fmtPrice(p.price)} <small>грн/${esc(p.unit)}</small></span>
           ${p.oldPrice ? `<span class="old">${fmtPrice(p.oldPrice)}</span>` : ''}
@@ -1027,10 +1061,10 @@ async function renderProduct(id) {
   bindFavTarget(p);
   renderCompare($('#compare'), p);
   // Користувач побачив поточну ціну — знижка «з обраного» для цього товару вже не нова.
-  if (isFav(id) && favDrop(p, favs[id])) markSeen([id]);
+  if (!p._view && isFav(id) && favDrop(p, favs[id])) markSeen([id]);
 
   const hist = await loadHistory(id, p.from);
-  if (state.byId.get(id) !== p || !$('#chart')) return;
+  if (seq !== productSeq || !$('#chart')) return;
   const cur = segments(hist, Infinity).at(-1);
   if (p.oldPrice && cur?.inflated) {
     $('#warn').innerHTML = `<p class="warn-box"><b>⚠</b><span>Ціну до знижки завищено: перед акцією товар коштував <b>${fmtPrice(cur.ref)} грн</b>, а не ${fmtPrice(p.oldPrice)} грн.
@@ -1152,6 +1186,8 @@ async function renderCompare(el, p) {
     return;
   }
   const here = rows.find((r) => r.c === state.city);
+  // Місто, ціни якого зараз на картці (інше, ніж вибране, — якщо відкрили з мапи).
+  const shown = p._view ? rows.find((r) => r.c.slug === p.from) : here;
   const min = rows[0].price;
   const max = rows.at(-1).price;
   const cheapest = rows.filter((r) => r.price === min).map((r) => r.c.name);
@@ -1187,8 +1223,8 @@ async function renderCompare(el, p) {
     const d = diffOf(r);
     return d ? `<span class="crow__diff${d.cls ? ` crow__diff--${d.cls}` : ''}">${d.text}</span>` : '';
   };
-  const row = (r) => `<button class="crow${r === here ? ' is-here' : ''}" data-city="${r.c.slug}"
-      title="${r === here ? 'Поточне місто' : `Перейти до міста ${esc(r.c.name)}`}">
+  const row = (r) => `<button class="crow${r === here ? ' is-here' : ''}${r === shown && r !== here ? ' is-shown' : ''}" data-city="${r.c.slug}"
+      title="${r === shown ? 'Ціни цього міста зараз на картці' : `Ціна й історія в місті ${esc(r.c.name)}`}">
       <span class="crow__city">${esc(r.c.name)}</span>
       <span class="crow__track" aria-hidden="true"><i style="left:${pos(r.price).toFixed(1)}%"></i></span>
       <span class="crow__price${r.old ? ' price--sale' : ''}">${fmtPrice(r.price)}${r.old ? ` <span class="old">${fmtPrice(r.old)}</span>` : ''}</span>
@@ -1225,8 +1261,8 @@ async function renderCompare(el, p) {
         const text = lb
           ? `<text class="mcity__label" x="${lb[0]}" y="${lb[1]}" text-anchor="${lb[2]}"><tspan class="mcity__name" x="${lb[0]}">${esc(c.name)}</tspan><tspan class="mcity__price" x="${lb[0]}" dy="17">${fmtPrice(r.price)}</tspan>${pctLabel(r)}</text>`
           : '';
-        return `<g class="mcity${r === here ? ' is-here' : ''}" data-city="${c.slug}" ${at} style="--tone:${tone(r.price)}">
-            ${r === here ? '<circle class="mcity__ring" r="15"/>' : ''}<circle class="mcity__dot" r="9"/>${text}
+        return `<g class="mcity${r === here ? ' is-here' : ''}${r === shown && r !== here ? ' is-shown' : ''}" data-city="${c.slug}" ${at} style="--tone:${tone(r.price)}">
+            ${r === here || r === shown ? '<circle class="mcity__ring" r="15"/>' : ''}<circle class="mcity__dot" r="9"/>${text}
           </g>`;
       })
       .join('');
@@ -1250,12 +1286,12 @@ async function renderCompare(el, p) {
     <details class="compare__list"${map ? '' : ' open'}><summary>Показати списком (${rows.length} ${plural(rows.length, 'місто', 'міста', 'міст')})</summary>
       <div class="crows">${rows.map(row).join('')}</div>
     </details>
-    <p class="note">Ціни за ${fmtDate(parseDate(state.meta.updated))}, по одному магазину в кожному місті${absent ? `; у ${absent} містах товару немає в асортименті` : ''}. Натисніть місто, щоб перейти до нього.${map ? `${max > min ? ' Колір області — середня ціна в її містах.' : ''} Межі: Natural Earth.` : ''}</p>`;
+    <p class="note">Ціни за ${fmtDate(parseDate(state.meta.updated))}, по одному магазину в кожному місті${absent ? `; у ${absent} містах товару немає в асортименті` : ''}. Натисніть місто, щоб побачити ціну й історію в ньому.${map ? `${max > min ? ' Колір області — середня ціна в її містах.' : ''} Межі: Natural Earth.` : ''}</p>`;
 
+  // Картка товару з цінами іншого міста; вибране місто лишається тим самим.
   const go = (slug) => {
-    if (slug === state.city.slug) return;
-    $('#city').value = slug;
-    $('#city').dispatchEvent(new Event('change'));
+    if (slug === (p._view ? p.from : state.city.slug)) return;
+    location.hash = slug === state.city.slug ? `#/p/${p.id}` : `#/p/${p.id}/${slug}`;
   };
   const tip = el.querySelector('.umap__tip');
   const showTip = (g, touch) => {
@@ -1265,7 +1301,7 @@ async function renderCompare(el, p) {
     const price = r
       ? `<b>${fmtPrice(r.price)} грн</b>${r.old ? ` <span class="old">${fmtPrice(r.old)}</span>` : ''}${d ? ` · <span class="${d.cls ? `crow__diff--${d.cls}` : ''}">${d.text}</span>` : ''}`
       : '<span class="note">товару немає</span>';
-    const btn = touch && r && r !== here ? `<br><button class="umap__go" data-go="${c.slug}">Обрати місто →</button>` : '';
+    const btn = touch && r && r !== shown ? `<br><button class="umap__go" data-go="${c.slug}">Показати тут →</button>` : '';
     tip.innerHTML = `<b>${esc(c.name)}</b><br>${price}${btn}`;
     tip.hidden = false;
     const box = el.querySelector('.umap').getBoundingClientRect();
@@ -1536,7 +1572,7 @@ let backTo = '#/';
 let favFrom = '#/';
 let favFromBack = '#/';
 const backLink = (to = backTo) => {
-  const p = to.startsWith('#/p/') && state.byId.get(Number(to.slice(4)));
+  const p = to.startsWith('#/p/') && state.byId.get(parseInt(to.slice(4), 10));
   const name = p && (p.name.length > 40 ? `${p.name.slice(0, 38).trim()}…` : p.name);
   const label = p ? name : to.startsWith('#/today') ? 'Що змінилося' : to === '#/fav' ? 'Обране' : 'Усі товари';
   return `<a class="back" href="${esc(to)}">← ${esc(label)}</a>`;
@@ -1556,7 +1592,7 @@ function route(e) {
   if (from === '#/fav' && favFrom.startsWith('#/p/') && pageKey(location.hash) === favFrom) backTo = favFromBack;
   // Повертаємось зі сторінки товару чи з «Обраного» — відновлюємо прокрутку сторінки, куди повернулись.
   const restore = from?.startsWith('#/p/') || (from === '#/fav' && location.hash !== '#/fav') ? scrollMemo.get(pageKey(location.hash)) : null;
-  const m = location.hash.match(/^#\/p\/(\d+)/);
+  const m = location.hash.match(/^#\/p\/(\d+)(?:\/([\w-]+))?/);
   const onFavs = location.hash === '#/fav';
   if (onFavs) $('#favLink').setAttribute('aria-current', 'page');
   else $('#favLink').removeAttribute('aria-current');
@@ -1564,7 +1600,7 @@ function route(e) {
   const render = () => {
     // Помилка всередині startViewTransition не дійде до жодного обробника — сторінка лишилася б із заглушками.
     try {
-      if (m) renderProduct(Number(m[1]));
+      if (m) renderProduct(Number(m[1]), m[2]);
       else if (onFavs) renderFavs();
       else if (today) renderToday(today[1]);
       else renderList();
