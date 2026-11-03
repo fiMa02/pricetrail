@@ -27,7 +27,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Onest:wght@400;500;600;700;800&display=swap">
-  <link rel="stylesheet" href="style.css?v=59">
+  <link rel="stylesheet" href="style.css?v=60">
 </head>
 <body>
   <header class="top">
@@ -76,6 +76,7 @@
           <label class="chip-toggle"><input type="checkbox" id="sale"><span>% Акції</span></label>
           <label class="chip-toggle chip-toggle--card"><input type="checkbox" id="card"><span>💳 З карткою АТБ</span></label>
           <label class="chip-toggle chip-toggle--warn" title="Акції, де «ціна до знижки» вища, ніж товар коштував перед акцією"><input type="checkbox" id="inflated"><span>⚠ Завищені акції</span></label>
+          <label class="chip-toggle" title="Сховати товари, яких у магазині вибраного міста немає (ціни з іншого міста)"><input type="checkbox" id="local"><span>📍 Тільки у вибраному місті</span></label>
           <button type="button" class="fpanel__reset" id="fReset" hidden>Скинути</button>
         </div>
       </div>
@@ -90,6 +91,6 @@
   </footer>
 
   <!-- ?v= — та сама версія, що CACHE у sw.js: старий HTML ніколи не отримає новий скрипт (і навпаки) -->
-  <script type="module" src="app.js?v=59"></script>
+  <script type="module" src="app.js?v=60"></script>
 </body>
 </html>
