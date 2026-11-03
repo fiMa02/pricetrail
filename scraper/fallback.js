@@ -1,6 +1,6 @@
 // Спільний каталог: вибір міста впливає лише на ціни.
-// site/data/cities/<місто>/extra.json — товари, яких у цьому місті немає, з цінами найближчого (по прямій) міста,
-// де вони є; поле from — slug того міста. Свої products.json міст не змінюються.
+// site/data/cities/<місто>/extra.json — товари, яких у цьому місті немає, з цінами міста, де вони є
+// й відстежуються найдовше (з кількох таких — найближчого по прямій); поле from — slug того міста. Свої products.json міст не змінюються.
 //
 //   node scraper/fallback.js — перебудувати з наявних products.json (парсер робить це сам після збору)
 import fs from 'node:fs/promises';
@@ -15,12 +15,24 @@ function distance(a, b) {
   return 2 * 6371 * Math.asin(Math.sqrt(h));
 }
 
+// Дата першого запису в історії кожного товару міста: id → 'YYYY-MM-DD'.
+async function firstSeen(dir) {
+  const since = new Map();
+  for (const f of await fs.readdir(dir).catch(() => [])) {
+    const shard = JSON.parse(await fs.readFile(path.join(dir, f), 'utf8'));
+    for (const [id, hist] of Object.entries(shard)) if (hist[0]) since.set(Number(id), hist[0][0]);
+  }
+  return since;
+}
+
 export async function buildFallback(dataDir) {
   const catalogs = new Map();
+  const tracked = new Map();
   for (const city of CITIES) {
     try {
       const list = JSON.parse(await fs.readFile(path.join(dataDir, 'cities', city.slug, 'products.json'), 'utf8'));
       catalogs.set(city.slug, new Map(list.map((p) => [p.id, p])));
+      tracked.set(city.slug, await firstSeen(path.join(dataDir, 'cities', city.slug, 'history')));
     } catch {
       // міста ще немає в даних
     }
@@ -34,8 +46,12 @@ export async function buildFallback(dataDir) {
     const extra = [];
     for (const id of all) {
       if (own.has(id)) continue;
-      // Спершу місто, де товар зараз у каталозі; якщо такого немає — де він лишився з позначкою out.
-      const src = nearest.find((c) => catalogs.get(c.slug).get(id) && !catalogs.get(c.slug).get(id).out) || nearest.find((c) => catalogs.get(c.slug).has(id));
+      // Спершу міста, де товар зараз у каталозі (якщо таких немає — де він лишився з позначкою out);
+      // з них — де він відстежується найдовше (довша історія цін), а серед рівних — найближче.
+      const has = nearest.filter((c) => catalogs.get(c.slug).has(id));
+      const inStock = has.filter((c) => !catalogs.get(c.slug).get(id).out);
+      const since = (c) => tracked.get(c.slug).get(id) || '9999';
+      const src = (inStock.length ? inStock : has).reduce((best, c) => (since(c) < since(best) ? c : best));
       const { out, checked, ...p } = catalogs.get(src.slug).get(id);
       extra.push({ ...p, from: src.slug });
     }
