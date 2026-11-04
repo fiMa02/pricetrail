@@ -1032,13 +1032,14 @@ function todayTile(k, r) {
   );
 }
 
-// ---------- Бета: головна зі змінами за сьогодні ----------
-// ?beta=1 вмикає (запам'ятовується в браузері), ?beta=0 вимикає. На головній — блоки змін за останній збір;
-// усі товари з пошуком, фільтрами й сортуванням — на #/all (відкривається натисканням на пошук).
+// ---------- Головна зі змінами за сьогодні ----------
+// На головній — мапа рівня цін і блоки змін за останній збір; усі товари з пошуком, фільтрами й сортуванням —
+// на #/all (відкривається натисканням на пошук). ?beta=0 повертає стару головну зі списком усіх товарів
+// (запам'ятовується в браузері), ?beta=1 — знову нову.
 const BETA = (() => {
   const v = new URLSearchParams(location.search).get('beta');
-  if (v != null) store.set('beta', v === '1' ? '1' : '');
-  return store.get('beta') === '1';
+  if (v != null) store.set('beta', v === '0' ? '0' : '1');
+  return store.get('beta') !== '0';
 })();
 const isHome = () => BETA && (location.hash === '' || location.hash === '#/' || location.hash === '#');
 const HOME_BLOCK = 8;
@@ -1411,7 +1412,25 @@ function renderToday(tab) {
   const tile = (r) => todayTile(cur[0], r);
   const sorter = TODAY_SORTS[todaySort][1];
   const list = sorter === 'reverse' ? [...cur[2]].reverse() : sorter ? [...cur[2]].sort((a, b) => sorter(a.p, b.p)) : cur[2];
-  html += `<div class="grid">${list.map(tile).join('')}</div>`;
+  // Товари — за розділами каталогу (у порядку каталогу), усередині — за вибраним сортуванням.
+  const byGroup = new Map(state.groups.map(([g]) => [g, []]));
+  for (const x of list) {
+    const g = x.p.group || 'Інше';
+    if (!byGroup.has(g)) byGroup.set(g, []);
+    byGroup.get(g).push(x);
+  }
+  const groups = [...byGroup].filter(([, xs]) => xs.length);
+  html +=
+    groups.length > 1
+      ? groups
+          .map(
+            ([g, xs]) => `<section class="today-group">
+              <div class="section-head"><h2>${GROUPS.get(g) || '📦'} ${esc(g)} <small>${xs.length}</small></h2></div>
+              <div class="grid">${xs.map(tile).join('')}</div>
+            </section>`,
+          )
+          .join('')
+      : `<div class="grid">${list.map(tile).join('')}</div>`;
   app.innerHTML = html;
   $('#todaySort').onchange = (e) => {
     todaySort = e.target.value;

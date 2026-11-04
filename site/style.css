@@ -724,3 +724,4 @@ th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--lin
 .umap__week { font-size: 13px; color: var(--ink-2); font-variant-numeric: tabular-nums; white-space: nowrap; }
 /* На головній мапа — на всю ширину панелі */
 .home-map .umap, .home-map .umap__legend, .home-map .umap__weeks { max-width: none; }
+.today-group .section-head h2 small { color: var(--muted); font-weight: 600; font-size: 14px; margin-left: 4px; }
