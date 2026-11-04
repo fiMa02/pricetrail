@@ -2305,6 +2305,15 @@ function route(e) {
   else render();
 }
 
+// Кнопка «Угору» — з'являється, коли прогорнули більше ніж півтора екрана.
+{
+  const up = $('#toTop');
+  const sync = () => up.classList.toggle('is-on', scrollY > innerHeight * 1.5);
+  addEventListener('scroll', sync, { passive: true });
+  up.addEventListener('click', () => scrollTo({ top: 0, behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' }));
+  sync();
+}
+
 app.innerHTML = skeleton();
 loadCities()
   .then(loadData)

@@ -725,3 +725,12 @@ th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--lin
 /* На головній мапа — на всю ширину панелі */
 .home-map .umap, .home-map .umap__legend, .home-map .umap__weeks { max-width: none; }
 .today-group .section-head h2 small { color: var(--muted); font-weight: 600; font-size: 14px; margin-left: 4px; }
+/* Кнопка «Угору» */
+.to-top {
+  position: fixed; z-index: 29; right: calc(18px + env(safe-area-inset-right, 0px)); bottom: calc(18px + env(safe-area-inset-bottom, 0px));
+  width: 46px; height: 46px; padding: 0; border-radius: 50%; display: grid; place-items: center; cursor: pointer;
+  background: var(--surface); color: var(--ink); border: 1px solid var(--line); box-shadow: var(--shadow-hover);
+  opacity: 0; visibility: hidden; transform: translateY(10px); transition: opacity .2s, transform .2s, visibility .2s;
+}
+.to-top.is-on { opacity: 1; visibility: visible; transform: none; }
+.to-top:hover { color: var(--accent); border-color: var(--accent); }
