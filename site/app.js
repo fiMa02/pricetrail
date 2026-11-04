@@ -1108,8 +1108,10 @@ async function renderHomeMap(el) {
   // а точки й підписи малюються заново на нових місцях і лишаються сталого розміру на екрані.
   const view = { k: 1, tx: 0, ty: 0 };
   const K_MAX = 8;
-  // Назви областей — завжди; назви міст — при наближенні (наші міста раніше, малі пункти — пізніше).
-  // Ваше місто підписане завжди.
+  // Назви областей — завжди (на телефоні — з наближення OBLAST_LABELS_AT, бо без нього вони там злипаються);
+  // назви міст — при наближенні (наші міста раніше, малі пункти — пізніше). Ваше місто підписане завжди.
+  const OBLAST_LABELS_AT = 2;
+  const NARROW = 600; // ширина мапи на екрані, px, нижче якої — «телефон»
   const CITY_LABELS_AT = 2;
   const SMALL_LABELS_AT = 3;
   const marksHtml = (m, px) => {
@@ -1119,13 +1121,23 @@ async function renderHomeMap(el) {
     const vis = pts
       .map((p) => ({ ...p, xy: [p.xy[0] * k + tx, p.xy[1] * k + ty] }))
       .filter(({ xy: [x, y] }) => x > -20 && y > -20 && x < map.w + 20 && y < map.h + 20);
-    const oblasts = (map.names || [])
-      .map((name, i) => name && map.labels[i] && { name, x: map.labels[i][0] * k + tx, y: map.labels[i][1] * k + ty })
-      .filter((o) => o && o.x > 0 && o.y > 0 && o.x < map.w && o.y < map.h);
-    const oblastBoxes = oblasts.map(({ name, x, y }) => {
+    const all = map.w * px >= NARROW || k >= OBLAST_LABELS_AT ? map.names || [] : [];
+    const box = ({ name, x, y }) => {
       const w = name.length * 6.6 * mo;
       return [x - w / 2, y - 9 * mo, x + w / 2, y + 5 * mo];
-    });
+    };
+    const hit = (a, b) => a[0] < b[2] && b[0] < a[2] && a[1] < b[3] && b[1] < a[3];
+    // Назву, що налазила б на вже поставлену, пропускаємо.
+    const oblasts = [];
+    const oblastBoxes = [];
+    for (const [i, name] of all.entries()) {
+      const o = name && map.labels[i] && { name, x: map.labels[i][0] * k + tx, y: map.labels[i][1] * k + ty };
+      if (!o || o.x <= 0 || o.y <= 0 || o.x >= map.w || o.y >= map.h) continue;
+      const b = box(o);
+      if (oblastBoxes.some((x) => hit(x, b))) continue;
+      oblasts.push(o);
+      oblastBoxes.push(b);
+    }
     const labels = placeLabels(
       vis.map((p) => (p.c === here || (p.c.slug ? k >= CITY_LABELS_AT : k >= SMALL_LABELS_AT) ? p : { ...p, r: null })),
       here,
@@ -1137,7 +1149,7 @@ async function renderHomeMap(el) {
     // Назву області, на яку налазить підпис вашого міста, ховаємо — підпис важливіший.
     const hb = labels.hereBox;
     const oblastHtml = oblasts
-      .filter((o, i) => !hb || !(oblastBoxes[i][0] < hb[2] && hb[0] < oblastBoxes[i][2] && oblastBoxes[i][1] < hb[3] && hb[1] < oblastBoxes[i][3]))
+      .filter((o, i) => !hb || !hit(oblastBoxes[i], hb))
       .map(({ name, x, y }) => `<text class="umap__oblast" transform="translate(${x.toFixed(1)} ${y.toFixed(1)}) scale(${mo.toFixed(3)})" text-anchor="middle">${esc(name)}</text>`)
       .join('');
     // Точки: на всій мапі — пропорційні мапі (на телефоні дрібні, щоб не зливались), з наближенням ростуть до
