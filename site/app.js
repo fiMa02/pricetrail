@@ -67,6 +67,9 @@ const QTY_PCS_SUM = /(?<![\d.,])(\d+)\s*\+\s*(\d+)\s*шт(?![а-яіїєґa-z])/
 const PCS_ONLY = new Set(['Дім, одяг і дозвілля', 'Канцелярські товари']);
 // Тут штуки важливіші за вагу («Пакети 30 шт 35 л», «Підгузки 40 шт»).
 const PCS_FIRST = new Set(['Товари для дому', 'Товари для дітей']);
+// Набори тут — різні речі в одній упаковці («дез стік 50 мл / гель 250 мл»): лише за штуку.
+// В інших розділах («Набір кормів 340 г», «Набір Шоколад 255г (3шт*85г)») вага — це весь вміст.
+const SET_PCS_ONLY = new Set([...PCS_ONLY, ...PCS_FIRST, 'Гігієна і косметика']);
 // «12», «2,5» або «(20+2)»
 const qtyNum = (s) => (s[0] === '(' ? s.slice(1, -1).split('+').reduce((a, b) => a + +b, 0) : parseFloat(s.replace(',', '.')));
 
@@ -108,8 +111,8 @@ function perUnit(p) {
   // Таблетки, вітаміни: «0,5 г №60» — вага однієї таблетки, а не вміст упаковки.
   if (p.category === 'Медикаменти') return null;
   const g = p.group || '';
-  // Набори — лише за штуку; у «штучних» розділах навіть «1 шт» означає, що вага там — не вміст.
-  const pcsOnly = PCS_ONLY.has(g) || /^наб[іi]р/i.test(p.name) || (PCS_FIRST.has(g) && QTY_PCS.test(p.name));
+  // Набори в неїстівних розділах — лише за штуку; у «штучних» розділах навіть «1 шт» означає, що вага там — не вміст.
+  const pcsOnly = PCS_ONLY.has(g) || (SET_PCS_ONLY.has(g) && /^наб[іi]р/i.test(p.name)) || (PCS_FIRST.has(g) && QTY_PCS.test(p.name));
   const q = pcsOnly ? parsePieces(p.name) : parseWeight(p.name) || parsePieces(p.name);
   if (!q || !(q.qty > 0) || q.qty === 1) return null;
   return { price: p.price / q.qty, unit: q.unit };
