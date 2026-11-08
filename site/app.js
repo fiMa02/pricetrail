@@ -4,7 +4,7 @@ const DAY = 86400000;
 
 const $ = (sel) => document.querySelector(sel);
 const app = $('#app');
-const state = { cities: [], city: null, products: [], byId: new Map(), meta: null, shown: PAGE, shards: new Map() };
+const state = { cities: [], city: null, chains: ['atb'], products: [], byId: new Map(), meta: null, shown: PAGE, shards: new Map() };
 
 const fmtPrice = (v) => v.toFixed(2).replace('.', ',');
 const parseDate = (s) => Date.UTC(+s.slice(0, 4), +s.slice(5, 7) - 1, +s.slice(8, 10));
@@ -136,6 +136,16 @@ const store = {
   },
 };
 const cityDir = () => `data/cities/${state.city.slug}`;
+
+// ---------- ТЕСТ: кілька мереж ----------
+// Каталоги інших мереж (поки Сільпо — один магазин у Хмельницькому) лежать у data/chains/<мережа>/<місто>/
+// у форматі АТБ, з полем chain; будує scraper/silpo.js. Товари АТБ поля chain не мають.
+const CHAINS = { atb: 'АТБ', silpo: 'Сільпо' };
+const CHAIN_SITE = { atb: ['https://www.atbmarket.com', 'atbmarket.com'], silpo: ['https://silpo.ua', 'silpo.ua'] };
+const chainOf = (p) => p.chain || 'atb';
+const chainDir = (chain, slug = state.city.slug) => (chain === 'atb' ? `data/cities/${slug}` : `data/chains/${chain}/${slug}`);
+// Позначка мережі — коли у вибраному місті їх кілька.
+const chainTag = (p) => (state.chains.length > 1 ? `<span class="chain chain--${chainOf(p)}">${CHAINS[chainOf(p)]}</span>` : '');
 
 async function loadCities() {
   state.cities = await fetch('data/cities.json').then((r) => r.json());
@@ -283,15 +293,23 @@ function initCityMenu() {
 async function loadData() {
   // Каталог спільний для всіх міст: products.json — товари цього міста, extra.json — решта,
   // з цінами найближчого міста, де вони є (поле from), — будує scraper/fallback.js.
-  const [own, extra, meta] = await Promise.all([
+  const optional = (file, fallback) =>
+    fetch(file)
+      .then((r) => (r.ok ? r.json() : fallback))
+      .catch(() => fallback);
+  const [own, extra, meta, silpo, silpoMeta] = await Promise.all([
     fetch(`${cityDir()}/products.json`).then((r) => r.json()),
-    fetch(`${cityDir()}/extra.json`)
-      .then((r) => (r.ok ? r.json() : []))
-      .catch(() => []),
+    optional(`${cityDir()}/extra.json`, []),
     fetch(`${cityDir()}/meta.json`).then((r) => r.json()),
+    optional(`${chainDir('silpo')}/products.json`, []),
+    optional(`${chainDir('silpo')}/meta.json`, null),
   ]);
+  state.chains = silpo.length ? ['atb', 'silpo'] : ['atb'];
+  if (!state.chains.includes(filters.chain)) filters.chain = '';
+  $('#chain').hidden = state.chains.length < 2;
+  $('#chain').value = filters.chain;
   const collator = new Intl.Collator('uk');
-  const products = own.concat(extra).sort((a, b) => collator.compare(a.name, b.name));
+  const products = own.concat(extra, silpo).sort((a, b) => collator.compare(a.name, b.name));
   state.byId = new Map();
   state.shards = new Map();
   for (const p of products) {
@@ -304,7 +322,9 @@ async function loadData() {
   state.changes = await fetch(`${cityDir()}/changes.json`)
     .then((r) => (r.ok ? r.json() : null))
     .catch(() => null);
-  $('#updated').textContent = `${state.city.name}, магазин: ${meta.store.address} · ${meta.productCount.toLocaleString('uk')} товарів · оновлено ${fmtDate(parseDate(meta.updated))}`;
+  $('#updated').textContent = `${state.city.name}, магазин${silpoMeta ? ' АТБ' : ''}: ${meta.store.address} · ${meta.productCount.toLocaleString('uk')} товарів · оновлено ${fmtDate(parseDate(meta.updated))}${
+    silpoMeta ? ` · Сільпо: ${silpoMeta.store.address} · ${silpoMeta.productCount.toLocaleString('uk')} товарів · оновлено ${fmtDate(parseDate(silpoMeta.updated))}` : ''
+  }`;
 
   const groups = new Map();
   for (const p of products) groups.set(p.group || 'Інше', (groups.get(p.group || 'Інше') || 0) + 1);
@@ -361,10 +381,10 @@ const GROUPS = new Map([
 ]);
 
 // slug — місто, з якого історія (для товарів, яких у вибраному місті немає, — місто-джерело ціни).
-async function loadHistory(id, slug = state.city.slug) {
+async function loadHistory(id, slug = state.city.slug, chain = 'atb') {
   const shard = String(id % SHARDS).padStart(2, '0');
-  const key = `${slug}/${shard}`;
-  if (!state.shards.has(key)) state.shards.set(key, fetch(`data/cities/${slug}/history/${shard}.json`).then((r) => r.json()));
+  const key = `${chain}/${slug}/${shard}`;
+  if (!state.shards.has(key)) state.shards.set(key, fetch(`${chainDir(chain, slug)}/history/${shard}.json`).then((r) => r.json()));
   return (await state.shards.get(key))[id] || [];
 }
 const cityName = (slug) => state.cities.find((c) => c.slug === slug)?.name || slug;
@@ -782,7 +802,7 @@ function bindCart() {
 
 // ---------- Фільтри ----------
 
-const filters = { q: '', group: '', cat: '', sort: 'name', sale: false, card: false, inflated: false, local: false, low: false };
+const filters = { q: '', chain: '', group: '', cat: '', sort: 'name', sale: false, card: false, inflated: false, local: false, low: false };
 try {
   Object.assign(filters, JSON.parse(sessionStorage.getItem('filters') || '{}'));
 } catch {}
@@ -824,6 +844,7 @@ function bindFilters() {
   const update = () => {
     filters.q = $('#q').value;
     filters.cat = $('#cat').value;
+    filters.chain = $('#chain').value;
     filters.sort = $('#sort').value;
     filters.sale = $('#sale').checked;
     filters.card = $('#card').checked;
@@ -863,7 +884,7 @@ function bindFilters() {
     clearTimeout(t);
     t = setTimeout(update, 150);
   });
-  for (const id of ['#cat', '#sort', '#sale', '#card', '#inflated', '#local', '#low']) $(id).addEventListener('change', update);
+  for (const id of ['#chain', '#cat', '#sort', '#sale', '#card', '#inflated', '#local', '#low']) $(id).addEventListener('change', update);
 }
 
 // Ціна за 1 кг / л / шт (вагові товари — за їхньою ціною); null, якщо для цієї одиниці невідома.
@@ -880,6 +901,7 @@ function filtered() {
   const words = norm(filters.q).split(/\s+/).filter(Boolean);
   let list = state.products.filter(
     (p) =>
+      (!filters.chain || chainOf(p) === filters.chain) &&
       (!filters.group || (p.group || 'Інше') === filters.group) &&
       (!filters.cat || p.category === filters.cat) &&
       (!filters.sale || p.oldPrice) &&
@@ -929,7 +951,7 @@ function card(p, from, extra = '') {
       ${cartBtn(p)}
     </div>
     <div class="card__body">
-      <div class="card__name">${esc(p.name)}</div>
+      ${chainTag(p)}<div class="card__name">${esc(p.name)}</div>
       <div class="card__price">
         <span class="price ${p.oldPrice ? 'price--sale' : ''}">${fmtPrice(p.price)} <small>₴/${esc(p.unit)}</small></span>
         ${p.oldPrice ? `<span class="old">${fmtPrice(p.oldPrice)}</span>` : ''}
@@ -1463,6 +1485,7 @@ function renderGroups() {
     state.groups.map(([g, n]) => `<option value="${esc(g)}">${GROUPS.get(g) || '📦'} ${esc(g)} (${n})</option>`).join('');
   $('#group').value = filters.group;
   const active = [
+    filters.chain && CHAINS[filters.chain],
     filters.group && `${GROUPS.get(filters.group) || '📦'} ${filters.group}`,
     filters.cat,
     filters.sale && '% Акції',
@@ -1528,7 +1551,8 @@ function initFilterPanel() {
     applyFilters();
   });
   $('#fReset').onclick = () => {
-    Object.assign(filters, { group: '', cat: '', sale: false, card: false, inflated: false, local: false, low: false });
+    Object.assign(filters, { chain: '', group: '', cat: '', sale: false, card: false, inflated: false, local: false, low: false });
+    $('#chain').value = '';
     for (const id of ['#sale', '#card', '#inflated', '#local', '#low']) $(id).checked = false;
     fillCategories();
     applyFilters();
@@ -1696,7 +1720,7 @@ async function renderProduct(id, slug) {
       <div class="product__media"><img class="product__img" src="${esc(p.img)}" alt=""></div>
       <div>
         <h1>${esc(p.name)}</h1>
-        <div class="chips">${[p.group, p.category, p.brand].filter(Boolean).map((c) => `<span class="chip">${esc(c)}</span>`).join('')}</div>
+        <div class="chips">${chainTag(p)}${[p.group, p.category, p.brand].filter(Boolean).map((c) => `<span class="chip">${esc(c)}</span>`).join('')}</div>
         ${
           p._view
             ? `<p class="elsewhere-box">Ціни та історія — з міста <b>${esc(cityName(p.from))}</b>.${state.byId.has(id) ? ` <a href="#/p/${id}">Показати для міста ${esc(state.city.name)}</a>` : ''}</p>`
@@ -1714,7 +1738,7 @@ async function renderProduct(id, slug) {
         ${p.cardPrice ? `<div class="atbcard atbcard--big">${CARD_ICON}<b>${fmtPrice(p.cardPrice)} грн</b> при оплаті карткою АТБ <span class="note">(−${pct(p.cardPrice, p.price)}%)</span></div>` : ''}
         ${honestBox(p)}
         <div id="warn"></div>
-        <div class="product__actions"><span class="fav-actions">${favActions(p)}</span>${cartToggle(p)}<a class="btn btn--primary" href="https://www.atbmarket.com${esc(p.url)}" target="_blank" rel="noopener">Відкрити на atbmarket.com ↗</a></div>
+        <div class="product__actions"><span class="fav-actions">${favActions(p)}</span>${cartToggle(p)}<a class="btn btn--primary" href="${CHAIN_SITE[chainOf(p)][0]}${esc(p.url)}" target="_blank" rel="noopener">Відкрити на ${CHAIN_SITE[chainOf(p)][1]} ↗</a></div>
       </div>
     </div>
     <section class="panel">
@@ -1725,16 +1749,22 @@ async function renderProduct(id, slug) {
       <div class="chart" id="chart"><div class="sk" style="height:280px;border-radius:12px"></div></div>
       <div id="stats"></div>
     </section>
-    <section class="panel" id="compare">
+    ${state.chains.length > 1 && !p._view ? '<section class="panel vs" id="vs"></section>' : ''}
+    ${
+      chainOf(p) === 'atb'
+        ? `<section class="panel" id="compare">
       <div class="panel__head"><h2>Ціна в інших містах</h2></div>
       <div class="sk" style="height:120px;border-radius:12px"></div>
-    </section>`;
+    </section>`
+        : ''
+    }`;
   bindFavTarget(p);
-  renderCompare($('#compare'), p);
+  if ($('#vs')) renderVs($('#vs'), p);
+  if ($('#compare')) renderCompare($('#compare'), p);
   // Користувач побачив поточну ціну — знижка «з обраного» для цього товару вже не нова.
   if (!p._view && isFav(id) && favDrop(p, favs[id])) markSeen([id]);
 
-  const hist = await loadHistory(id, p.from);
+  const hist = await loadHistory(id, p.from, chainOf(p));
   if (seq !== productSeq || !$('#chart')) return;
   const cur = segments(hist, Infinity).at(-1);
   if (p.oldPrice && cur?.inflated) {
@@ -1757,6 +1787,166 @@ async function renderProduct(id, slug) {
   const ro = new ResizeObserver(() => $('#chart') && draw());
   ro.observe($('#chart'));
   addEventListener('hashchange', () => ro.disconnect(), { once: true });
+}
+
+// ---------- ТЕСТ: порівняння з товаром іншої мережі ----------
+// Схожі товари шукаємо за словами назви (перші 5 літер — щоб «моцарела» = «моцарелла», «курячий» = «куряче»),
+// брендом і вагою/об'ємом. Вибір користувача — pairs[id] = id товару іншої мережі (0 — «не порівнювати»), в обидва боки.
+let pairs = {};
+try {
+  pairs = JSON.parse(store.get('pairs') || '{}');
+} catch {}
+// Службові слова й упаковка (за першими 5 літерами) — не відрізняють товари.
+const MATCH_STOP = new Set(
+  'з зі із та і й в у на для без по тм гат шт вагов фасов преміум тетра пляшк стака пакет банка фольг флако фільт мрц тек стери пасте ультр натур упако скло пет об ск бут кор'.split(' '),
+);
+const matchWords = (p) =>
+  (p._w ||= new Set(
+    norm(p.name)
+      .replace(/[«»"“”()®™,.!+*]/g, ' ')
+      .split(/\s+/)
+      .filter((w) => w.length > 1 && !/\d/.test(w) && !w.includes('/'))
+      .map((w) => w.slice(0, 5))
+      .filter((w) => !MATCH_STOP.has(w)),
+  ));
+const qtyOf = (p) => (p._qty === undefined ? (p._qty = p.unit === 'кг' ? null : parseWeight(p.name)) : p._qty);
+// Вага слова — наскільки воно рідкісне в обох каталогах (IDF): збіг смаку чи бренду важить більше, ніж «йогурт».
+let idfFor = null;
+let idfMap = new Map();
+const idf = (w) => {
+  if (idfFor !== state.products) {
+    idfFor = state.products;
+    idfMap = new Map();
+    for (const p of state.products) for (const x of matchWords(p)) idfMap.set(x, (idfMap.get(x) || 0) + 1);
+    for (const [x, n] of idfMap) idfMap.set(x, Math.log((state.products.length + 1) / n));
+  }
+  return idfMap.get(w) ?? Math.log(state.products.length + 1);
+};
+const sameQty = (qa, qb) => qa.unit === qb.unit && Math.abs(qa.qty / qb.qty - 1) < 0.03;
+// Сами вибираємо лише той самий товар: схожа назва й та сама фасовка (або обидва вагові).
+const autoMatch = (a, b, score) => {
+  const qa = qtyOf(a);
+  const qb = qtyOf(b);
+  return score >= MATCH_AUTO && (qa && qb ? sameQty(qa, qb) : !qa && !qb && a.unit === b.unit);
+};
+function matchScore(a, b) {
+  const wa = matchWords(a);
+  const wb = matchWords(b);
+  let common = 0;
+  let sa = 0;
+  let sb = 0;
+  for (const w of wa) {
+    sa += idf(w);
+    if (wb.has(w)) common += idf(w);
+  }
+  if (!common) return 0;
+  for (const w of wb) sb += idf(w);
+  let s = common / Math.sqrt(sa * sb);
+  // Рідкісні слова, яких немає в іншій назві, з обох боків — зазвичай різний смак чи різновид
+  // («Lay's зі смаком реберець» і «Lay's зі смаком сиру»).
+  s -= (0.8 * Math.min(sa - common, sb - common)) / Math.sqrt(sa * sb);
+  // Бренд: однаковий — плюс; різні (і бренду одного немає в назві другого) — це інший товар.
+  const ba = a.brand && norm(a.brand).slice(0, 5);
+  const bb = b.brand && norm(b.brand).slice(0, 5);
+  // (В овочах і фруктах «бренд» в АТБ — країна походження, тож різниця там нічого не каже.)
+  if (ba && bb) s += ba === bb ? 0.2 : wa.has(bb) || wb.has(ba) || a.group === 'Овочі та фрукти' ? 0 : -0.3;
+  const qa = qtyOf(a);
+  const qb = qtyOf(b);
+  if (qa && qb) s += sameQty(qa, qb) ? 0.15 : -0.1;
+  return s;
+}
+const MATCH_SHOW = 0.3; // показувати серед схожих
+const MATCH_AUTO = 0.9; // вибирати самим, якщо користувач ще не вибрав
+// Що порівнюємо: ціну за кг/л, якщо вона відома в обох (і в однакових одиницях), інакше — ціну за упаковку.
+function vsBasis(a, b) {
+  const per = (p) => (p.unit === 'кг' ? { price: p.price, unit: 'кг' } : p._per);
+  const pa = per(a);
+  const pb = per(b);
+  if (pa && pb && pa.unit === pb.unit && pa.unit !== 'шт') return { a: pa.price, b: pb.price, what: `за 1 ${pa.unit}` };
+  return { a: a.price, b: b.price, what: 'за упаковку' };
+}
+function vsRow(p, picked) {
+  return `<button type="button" class="vs-row" data-pick="${p.id}" aria-pressed="${p.id === picked}">
+    <img src="${esc(p.img)}" alt="" loading="lazy">
+    <span class="vs-row__name">${esc(p.name)}</span>
+    <span class="vs-row__price"><b class="${p.oldPrice ? 'price--sale' : ''}">${fmtPrice(p.price)} ₴</b>${perHtml(p)}</span>
+  </button>`;
+}
+function renderVs(el, p) {
+  const mine = chainOf(p);
+  const other = state.chains.find((c) => c !== mine);
+  const pool = state.products.filter((x) => chainOf(x) === other);
+  const ranked = pool
+    .map((x) => [x, matchScore(p, x)])
+    .filter(([, sc]) => sc >= MATCH_SHOW)
+    .sort((a, b) => b[1] - a[1]);
+  const chosen = pairs[p.id];
+  const pick = chosen === 0 ? null : chosen ? state.byId.get(chosen) : ranked[0] && autoMatch(p, ranked[0][0], ranked[0][1]) ? ranked[0][0] : null;
+  let q = '';
+  const paint = () => {
+    let verdict = '';
+    if (pick) {
+      const v = vsBasis(p, pick);
+      const d = Math.round((v.b / v.a - 1) * 100);
+      verdict =
+        d === 0
+          ? `Однаково ${v.what}`
+          : `У ${CHAINS[other]} на ${Math.abs(d)}% ${d < 0 ? 'дешевше' : 'дорожче'} ${v.what}`;
+      const qa = qtyOf(p);
+      const qb = qtyOf(pick);
+      if (v.what === 'за упаковку' && qa && qb && Math.abs(qa.qty / qb.qty - 1) >= 0.03) verdict += ' · упаковки різні';
+    }
+    const words = norm(q).split(/\s+/).filter(Boolean);
+    const list = words.length
+      ? pool
+          .filter((x) => words.every((w) => x._q.includes(w)))
+          .map((x) => [x, matchScore(p, x)])
+          .sort((a, b) => b[1] - a[1])
+          .slice(0, 8)
+      : ranked.slice(0, 6);
+    const side = (x) => `<a class="vs-side" href="#/p/${x.id}">
+        ${chainTag(x)}
+        <img src="${esc(x.img)}" alt="">
+        <span class="vs-side__name">${esc(x.name)}</span>
+        <span class="vs-side__price"><b class="${x.oldPrice ? 'price--sale' : ''}">${fmtPrice(x.price)} <small>₴/${esc(x.unit)}</small></b>${x.oldPrice ? ` <s>${fmtPrice(x.oldPrice)}</s>` : ''}</span>
+        ${perHtml(x)}
+      </a>`;
+    el.innerHTML = `<div class="panel__head"><h2>Порівняння з ${CHAINS[other]}</h2></div>
+      ${
+        pick
+          ? `<div class="vs-pair">${side(p)}<span class="vs-pair__vs">vs</span>${side(pick)}</div>
+             <p class="vs-verdict vs-verdict--${vsBasis(p, pick).b < vsBasis(p, pick).a ? 'cheaper' : 'dearer'}">${verdict}</p>`
+          : `<p class="note">${chosen === 0 ? 'Порівняння вимкнено.' : `Такого самого товару в ${CHAINS[other]} не знайшли.`} Виберіть товар нижче або знайдіть його пошуком.</p>`
+      }
+      <div class="vs-pick">
+        <div class="vs-pick__head"><b>${pick ? 'Інший товар для порівняння' : 'Схожі товари'}</b>${pick ? '<button type="button" class="vs-none">Не порівнювати</button>' : ''}</div>
+        <input type="search" class="vs-q" placeholder="Знайти в ${CHAINS[other]}" value="${esc(q)}" autocomplete="off">
+        <div class="vs-list">${list.length ? list.map(([x]) => vsRow(x, pick?.id)).join('') : `<p class="note">${words.length ? 'Нічого не знайдено' : 'Схожих товарів немає'}</p>`}</div>
+      </div>`;
+  };
+  const setPair = (id) => {
+    const old = pairs[p.id];
+    if (old) delete pairs[old];
+    pairs[p.id] = id;
+    if (id) pairs[id] = p.id;
+    store.set('pairs', JSON.stringify(pairs));
+    renderVs(el, p);
+  };
+  paint();
+  el.addEventListener('input', (e) => {
+    if (!e.target.matches('.vs-q')) return;
+    q = e.target.value;
+    const pos = e.target.selectionStart;
+    paint();
+    const input = el.querySelector('.vs-q');
+    input.focus();
+    input.setSelectionRange(pos, pos);
+  });
+  el.onclick = (e) => {
+    const row = e.target.closest('[data-pick]');
+    if (row) setPair(+row.dataset.pick);
+    else if (e.target.closest('.vs-none')) setPair(0);
+  };
 }
 
 // ---------- Ціни в інших містах ----------
@@ -2054,7 +2244,8 @@ const realDiscount = (price, ref) =>
 // Перетворює точки змін у відрізки в межах періоду.
 // ref — звичайна ціна, що діяла перед акцією (для перевірки «ціни до знижки»).
 function segments(hist, days) {
-  const end = parseDate(state.meta.updated) + DAY;
+  // Кінець — останній збір (каталог іншої мережі може бути зібраний пізніше за АТБ).
+  const end = Math.max(parseDate(state.meta.updated), hist.length ? parseDate(hist.at(-1)[0]) : 0) + DAY;
   const start = Number.isFinite(days) ? end - days * DAY : -Infinity;
   const segs = [];
   let regular = null;
@@ -2332,4 +2523,5 @@ loadCities()
     app.innerHTML = '<p class="status">Не вдалося завантажити дані.</p>';
   });
 
-if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});
+// Тестова копія (/test/) живе поряд з основним сайтом — свій service worker видаляв би кеш основного.
+if ('serviceWorker' in navigator && !location.pathname.includes('/test/')) navigator.serviceWorker.register('sw.js').catch(() => {});

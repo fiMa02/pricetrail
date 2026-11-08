@@ -27,7 +27,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Onest:wght@400;500;600;700;800&display=swap">
-  <link rel="stylesheet" href="style.css?v=84">
+  <link rel="stylesheet" href="style.css?v=85">
 </head>
 <body>
   <header class="top">
@@ -72,6 +72,7 @@
       </summary>
       <div class="fpanel__body">
         <div class="filters__row">
+          <select id="chain" class="pill" aria-label="Мережа" hidden><option value="">Усі мережі</option><option value="atb">АТБ</option><option value="silpo">Сільпо</option></select>
           <select id="group" class="pill" aria-label="Розділ"><option value="">Усі розділи</option></select>
           <select id="cat" class="pill" aria-label="Підкатегорія"><option value="">Усі категорії</option></select>
           <label class="chip-toggle"><input type="checkbox" id="sale"><span>% Акції</span></label>
@@ -94,6 +95,6 @@
   </footer>
 
   <!-- ?v= — та сама версія, що CACHE у sw.js: старий HTML ніколи не отримає новий скрипт (і навпаки) -->
-  <script type="module" src="app.js?v=84"></script>
+  <script type="module" src="app.js?v=85"></script>
 </body>
 </html>
