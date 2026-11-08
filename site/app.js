@@ -1884,17 +1884,20 @@ function renderVs(el, p) {
   const pick = chosen === 0 ? null : chosen ? state.byId.get(chosen) : ranked[0] && autoMatch(p, ranked[0][0], ranked[0][1]) ? ranked[0][0] : null;
   let q = '';
   const paint = () => {
+    // Висновок — різниця за одиницю товару (шт чи кг), під ним дрібніше — за 1 кг/л (якщо вона відома й інша).
     let verdict = '';
+    let cheaper = false;
     if (pick) {
-      const v = vsBasis(p, pick);
-      const d = Math.round((v.b / v.a - 1) * 100);
-      verdict =
-        d === 0
-          ? `Однаково ${v.what}`
-          : `У ${CHAINS[other]} на ${Math.abs(d)}% ${d < 0 ? 'дешевше' : 'дорожче'} ${v.what}`;
-      const qa = qtyOf(p);
-      const qb = qtyOf(pick);
-      if (v.what === 'за упаковку' && qa && qb && Math.abs(qa.qty / qb.qty - 1) >= 0.03) verdict += ' · упаковки різні';
+      const diff = (x, y, what) => {
+        const d = Math.round((y / x - 1) * 100);
+        return d === 0 ? `однаково ${what}` : `на ${Math.abs(d)}% ${d < 0 ? 'дешевше' : 'дорожче'} ${what}`;
+      };
+      const per = vsBasis(p, pick);
+      const same = p.unit === pick.unit;
+      const main = same ? { a: p.price, b: pick.price, what: `за 1 ${p.unit}` } : per;
+      cheaper = main.b < main.a;
+      verdict = `У ${CHAINS[other]} ${diff(main.a, main.b, main.what)}`;
+      if (same && p.unit !== 'кг' && per.what !== 'за упаковку') verdict += `<small>${diff(per.a, per.b, per.what).replace(/^./, (c) => c.toUpperCase())}</small>`;
     }
     const words = norm(q).split(/\s+/).filter(Boolean);
     const list = words.length
@@ -1915,7 +1918,7 @@ function renderVs(el, p) {
       ${
         pick
           ? `<div class="vs-pair">${side(p)}<span class="vs-pair__vs">vs</span>${side(pick)}</div>
-             <p class="vs-verdict vs-verdict--${vsBasis(p, pick).b < vsBasis(p, pick).a ? 'cheaper' : 'dearer'}">${verdict}</p>`
+             <p class="vs-verdict vs-verdict--${cheaper ? 'cheaper' : 'dearer'}">${verdict}</p>`
           : `<p class="note">${chosen === 0 ? 'Порівняння вимкнено.' : `Такого самого товару в ${CHAINS[other]} не знайшли.`} Виберіть товар нижче або знайдіть його пошуком.</p>`
       }
       <div class="vs-pick">

@@ -750,6 +750,7 @@ th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--lin
 .vs-verdict { margin: 12px 0 0; font-weight: 700; font-size: 16px; }
 .vs-verdict--cheaper { color: var(--good); }
 .vs-verdict--dearer { color: var(--sale); }
+.vs-verdict small { display: block; margin-top: 2px; font-size: 13px; font-weight: 600; color: var(--ink-2); }
 .vs-pick { margin-top: 16px; display: grid; gap: 8px; }
 .vs-pick__head { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
 .vs-none { font: inherit; font-size: 13px; color: var(--muted); background: none; border: 0; cursor: pointer; text-decoration: underline; }
