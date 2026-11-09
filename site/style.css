@@ -766,3 +766,15 @@ th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--lin
 .vs-row__price .per { font-size: 12px; color: var(--muted); }
 .umap__weeks[hidden] { display: none; }
 .map-chain { margin-left: auto; }
+.chain-pick {
+  font: inherit; font-size: 14px; font-weight: 700; height: 40px; padding: 0 30px 0 14px; border-radius: 999px; cursor: pointer;
+  border: 1px solid var(--line); background: var(--surface) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23888' stroke-width='2.4' stroke-linecap='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E") no-repeat right 10px center / 14px;
+  color: var(--ink); appearance: none;
+}
+.chain-pick:focus-visible { outline: none; border-color: var(--accent); }
+/* Меню міст вирівнюємо по правому краю кнопок шапки (перед містом тепер ще й вибір мережі) */
+@media (hover: hover) and (pointer: fine) { .top__actions { position: relative; } .city-pick { position: static; } }
+.city-btn { min-width: 0; } #cityName { overflow: hidden; text-overflow: ellipsis; }
+@media (max-width: 440px) { .chain-pick { font-size: 13px; padding: 0 24px 0 10px; background-position: right 7px center; } }
+/* На телефоні з вибором мережі в шапці не вміщаються логотип, мережа, місто й три кнопки — логотип ховаємо */
+@media (max-width: 440px) { .top:has(#chainSel:not([hidden])) .logo { display: none; } }

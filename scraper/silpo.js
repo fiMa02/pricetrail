@@ -9,13 +9,15 @@
 // замість центрального магазину на Басейній, де ціни на 6–9% вищі, ніж в інших київських, узято звичайний).
 // Міста без Сільпо пропускаємо.
 // Результат — у тому самому форматі, що й АТБ, із полем chain: 'silpo' (порожні поля не пишемо):
-//   site/data/chains/silpo/<місто>/products.json, meta.json, history/NN.json
+//   site/data/chains/silpo/<місто>/products.json, meta.json, changes.json, history/NN.json
+//   site/data/chains/silpo/cities.json — [{ slug, address }]: міста, де є каталог Сільпо (для вибору міста на сайті)
 // id товару = SILPO_ID_BASE + externalProductId, щоб не перетинатися з id АТБ (вони до ~300 тис.).
 // Мапу «Рівень цін у містах» для Сільпо будує окремий знімок — scraper/silpo-snapshot.js.
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { CITIES } from './cities.js';
 import { entry, record, derive } from './scrape.js';
+import { writeChanges } from './changes.js';
 
 const API = 'https://sf-ecom-api.silpo.ua/v1/uk';
 const STORES_FILE = path.resolve('scraper/silpo-stores.json');
@@ -147,6 +149,7 @@ async function scrapeStore(city, store) {
     for (const k of Object.keys(p)) if (p[k] == null) delete p[k];
   }
   for (let i = 0; i < SHARDS; i++) await fs.writeFile(path.join(historyDir, `${String(i).padStart(2, '0')}.json`), JSON.stringify(shards[i]));
+  await writeChanges(dir, shards, products, today, await readJson(path.join(dir, 'products.json'), []));
   const list = [...products.values()].sort((a, b) => a.name.localeCompare(b.name, 'uk'));
   await fs.writeFile(path.join(dir, 'products.json'), JSON.stringify(list));
   const meta = { updated: today, updatedAt: new Date().toISOString(), productCount: list.length, store: { id: store.branchId, address: store.address } };
@@ -181,5 +184,11 @@ await Promise.all(
   }),
 );
 await fs.writeFile(STORES_FILE, JSON.stringify(stores, null, 2));
+const cities = [];
+for (const c of CITIES) {
+  const meta = await readJson(path.resolve('site/data/chains/silpo', c.slug, 'meta.json'), null);
+  if (meta) cities.push({ slug: c.slug, address: meta.store.address });
+}
+await fs.writeFile(path.resolve('site/data/chains/silpo/cities.json'), JSON.stringify(cities));
 if (skipped.length) console.log(`Без Сільпо (пропущено): ${skipped.join(', ')}`);
 if (failed) process.exitCode = 1;
