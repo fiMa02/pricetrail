@@ -1099,10 +1099,20 @@ const loadWeek = (date) => {
   return weekCache.get(date);
 };
 
+// ТЕСТ: рівень цін у містах для Сільпо (будує scraper/silpo-snapshot.js).
+let silpoLevels;
+const loadSilpoLevels = () =>
+  (silpoLevels ||= fetch('data/chains/silpo/levels.json')
+    .then((r) => (r.ok ? r.json() : null))
+    .catch(() => null));
+
 async function renderHomeMap(el) {
-  const [lv0, map, weeks] = await Promise.all([loadLevels(), loadMap().catch(() => null), loadWeeks()]);
+  const [lv0, map, weeks, slv] = await Promise.all([loadLevels(), loadMap().catch(() => null), loadWeeks(), loadSilpoLevels()]);
   if (!el.isConnected) return;
   if (!map || !lv0) return el.remove();
+  // Мережа на мапі: АТБ (з повзунком тижнів) або Сільпо; вибір запам'ятовується.
+  const levelsOf = { atb: lv0, ...(slv?.cities?.length ? { silpo: slv } : {}) };
+  let chain = levelsOf[store.get('mapChain')] ? store.get('mapChain') : 'atb';
   // Дані тижня (перераховуються, коли повзунком вибирають інший тиждень).
   // Кожен пункт — і місто (c), і його значення (r.v); наші щоденні міста мають slug.
   let lv, list, lo, hi, span, tone, pts, here, sums;
@@ -1128,7 +1138,7 @@ async function renderHomeMap(el) {
       sums.set(i, [s[0] + r.v, s[1] + 1]);
     }
   };
-  setData(lv0);
+  setData(levelsOf[chain]);
   // Наближення: k — масштаб, tx/ty — зсув (у координатах мапи). Області масштабуються,
   // а точки й підписи малюються заново на нових місцях і лишаються сталого розміру на екрані.
   const view = { k: 1, tx: 0, ty: 0 };
@@ -1201,9 +1211,13 @@ async function renderHomeMap(el) {
     }`;
   };
   const noteHtml = () =>
-    `Відсоток — на скільки поточні ціни (з акціями) у місті вищі чи нижчі за середні по ${list.length} ${plural(list.length, 'місту', 'містах', 'містах')}, за спільними товарами; по одному магазину в кожному місті.${
-      lv.date ? ` Знімок за ${fmtDate(parseDate(lv.date))}: молочні продукти, напої, хліб, ковбаси, кава й чай, побутова хімія.` : ''
-    } Колір області — середнє її міст.`;
+    chain === 'silpo'
+      ? `Відсоток — на скільки поточні ціни Сільпо (з акціями) у місті вищі чи нижчі за середні по ${list.length} ${plural(list.length, 'місту', 'містах', 'містах')}, де є Сільпо, за спільними товарами; по одному магазину в кожному місті.${
+          lv.date ? ` Знімок за ${fmtDate(parseDate(lv.date))}: молочні продукти, напої, хліб, ковбаси, кава й чай, побутова хімія.` : ''
+        } Колір області — середнє її міст.`
+      : `Відсоток — на скільки поточні ціни (з акціями) у місті вищі чи нижчі за середні по ${list.length} ${plural(list.length, 'місту', 'містах', 'містах')}, за спільними товарами; по одному магазину в кожному місті.${
+          lv.date ? ` Знімок за ${fmtDate(parseDate(lv.date))}: молочні продукти, напої, хліб, ковбаси, кава й чай, побутова хімія.` : ''
+        } Колір області — середнє її міст.`;
   // Повзунок тижнів — коли знімків щонайменше два; типово — останній.
   const weekAt = Math.max(0, weeks.indexOf(lv0.date));
   const weeksHtml =
@@ -1213,7 +1227,13 @@ async function renderHomeMap(el) {
           <span class="umap__week"></span>
         </div>`
       : '';
-  el.innerHTML = `<div class="panel__head"><h2>Рівень цін у містах</h2></div>
+  el.innerHTML = `<div class="panel__head"><h2>Рівень цін у містах</h2>${
+    levelsOf.silpo
+      ? `<div class="seg map-chain" role="group" aria-label="Мережа">${Object.keys(levelsOf)
+          .map((k) => `<button type="button" data-chain="${k}" aria-pressed="${k === chain}">${CHAINS[k]}</button>`)
+          .join('')}</div>`
+      : ''
+  }</div>
     <p class="compare__summary">${summaryHtml()}</p>
     <div class="umap umap--zoom">
       <svg viewBox="0 0 ${map.w} ${map.h}" role="img" aria-label="Мапа: різниця цін між містами">
@@ -1352,11 +1372,25 @@ async function renderHomeMap(el) {
     const zero = hi > lo ? Math.min(100, Math.max(0, (-lo / (hi - lo)) * 100)) : 50;
     el.querySelector('.umap__scale i').style.background = `linear-gradient(90deg, ${tone(lo)}, var(--map-mid) ${zero.toFixed(0)}%, ${tone(hi)})`;
     el.querySelector('.umap__note').innerHTML = noteHtml();
+    const weeksBar = el.querySelector('.umap__weeks');
+    if (weeksBar) weeksBar.hidden = chain !== 'atb';
     const week = el.querySelector('.umap__week');
     if (week) week.textContent = `тиждень ${fmtDate(parseDate(lv.date))}${lv.date === weeks.at(-1) ? ' (останній)' : ''}`;
     tip.hidden = true;
     draw();
   };
+  el.querySelector('.map-chain')?.addEventListener('click', (e) => {
+    const b = e.target.closest('[data-chain]');
+    if (!b || b.dataset.chain === chain) return;
+    chain = b.dataset.chain;
+    store.set('mapChain', chain);
+    for (const x of el.querySelectorAll('.map-chain button')) x.setAttribute('aria-pressed', x === b);
+    const slider = el.querySelector('.umap__weeks input');
+    // АТБ — з останнього тижня.
+    setData(levelsOf[chain]);
+    if (slider) slider.value = weekAt;
+    paint();
+  });
   const slider = el.querySelector('.umap__weeks input');
   if (slider) {
     slider.addEventListener('input', async () => {
