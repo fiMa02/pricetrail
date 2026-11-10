@@ -40,14 +40,14 @@ jobs:
       # порівняння міст (data/compare) і спільний каталог (data/cities/*/extra.json).
       - run: node scraper/compare.js && node scraper/fallback.js
       # Тестова копія: сторінка й скрипти з гілки silpo-test у site/test/, дані — спільні (../data),
-      # плюс каталоги інших мереж (data/chains) з тієї гілки.
+      # каталоги інших мереж (data/chains) щодня збирає daily.ps1 у main; з тієї гілки — лише якщо в main їх немає.
       - name: Тестова копія (/test/)
         run: |
           if [ -d test-src/site ]; then
             mkdir -p site/test
             cp test-src/site/index.html test-src/site/app.js test-src/site/style.css test-src/site/manifest.webmanifest test-src/site/icon* site/test/
             sed -i -E "s#(['\`])data/#\1../data/#g" site/test/app.js
-            if [ -d test-src/site/data/chains ]; then cp -r test-src/site/data/chains site/data/; fi
+            if [ ! -d site/data/chains ] && [ -d test-src/site/data/chains ]; then cp -r test-src/site/data/chains site/data/; fi
           fi
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v4

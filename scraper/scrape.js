@@ -473,7 +473,7 @@ async function main() {
 }
 
 // Для одноразових знімків (scraper/snapshot.js) — ті самі запити й розбір сторінок.
-export { BASE, curl, sleep, DELAY_MS, parseCategories, parseCityIds, getCityStores, scrapeCategory };
+export { BASE, curl, sleep, DELAY_MS, parseCategories, parseCityIds, getCityStores, scrapeCategory, entry, record, derive, today };
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
   main().catch((err) => {

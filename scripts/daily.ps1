@@ -23,6 +23,7 @@ $ok = $false
 $result = ''
 $scrapeOut = @()
 $snapNote = ''
+$silpoNote = ''
 
 # Короткий звіт на робочому столі після кожного запуску (перезаписується).
 function Write-StatusFile {
@@ -56,6 +57,7 @@ function Write-StatusFile {
         $result
     )
     if ($done) { $lines += $done }
+    if ($silpoNote) { $lines += $silpoNote }
     if ($snapNote) { $lines += $snapNote }
     if ($sum.cities) {
         $lines += "Зміни за сьогодні (міст: $($sum.cities)): подешевшало $($sum.down), подорожчало $($sum.up), нових акцій $($sum.sale), акцій закінчилось $($sum.saleEnd), після акції дорожче, ніж до неї, $($sum.saleUp), після акції ціна та сама $($sum.saleKept), нових товарів $($sum.added)"
@@ -79,6 +81,16 @@ try {
     # Виводимо в журнал і водночас запам'ятовуємо — для звіту на робочому столі.
     $scrapeOut = @(npm run scrape | ForEach-Object { Write-Host $_; $_ })
     if ($LASTEXITCODE -ne 0) { throw "Збір цін завершився з кодом $LASTEXITCODE" }
+    # Сільпо (для тестової копії сайту, /test/). Його збій не зриває публікацію цін АТБ.
+    Write-Host '== Збір цін Сільпо'
+    try {
+        $silpoOut = @(node scraper/silpo.js | ForEach-Object { Write-Host $_; $_ })
+        $n = @($silpoOut | Where-Object { $_ -match '^\[.+\] \d+ товарів' }).Count
+        $silpoNote = if ($LASTEXITCODE -eq 0) { "Сільпо: зібрано міст $n" } else { "Сільпо: ЧАСТКОВО (код $LASTEXITCODE), зібрано міст $n" }
+    } catch {
+        $silpoNote = "Сільпо: ПОМИЛКА ($_)"
+    }
+    Write-Host $silpoNote
     # Раз на тиждень (у неділю) — знімок рівня цін у всіх містах АТБ для мапи на головній (≈45 хв).
     # Його збій не зриває щоденну публікацію: на мапі лишається знімок минулого тижня.
     if ($started.DayOfWeek -eq [DayOfWeek]::Sunday) {
@@ -90,8 +102,18 @@ try {
             $snapNote = "Мапа рівня цін: ПОМИЛКА ($_), лишився знімок минулого тижня"
         }
         Write-Host $snapNote
+        Write-Host '== Знімок рівня цін Сільпо (щотижня)'
+        try {
+            $snapOut = @(node scraper/silpo-snapshot.js --fresh | ForEach-Object { Write-Host $_; $_ })
+            $note = if ($LASTEXITCODE -eq 0) { "Мапа рівня цін Сільпо оновлена: $($snapOut | Where-Object { $_ -match '^levels.json' } | Select-Object -Last 1)" } else { "Мапа рівня цін Сільпо: ПОМИЛКА (код $LASTEXITCODE), лишився знімок минулого тижня" }
+        } catch {
+            $note = "Мапа рівня цін Сільпо: ПОМИЛКА ($_), лишився знімок минулого тижня"
+        }
+        Write-Host $note
+        $snapNote = "$snapNote`r`n$note"
     }
-    Invoke-Step 'git add' { git add site/data }
+    # silpo-stores.json — запам'ятовані магазини Сільпо (новий з'являється, коли в місті вперше знайшовся магазин).
+    Invoke-Step 'git add' { git add site/data scraper/silpo-stores.json }
     git diff --cached --quiet
     if ($LASTEXITCODE -ne 0) {
         Invoke-Step 'git commit' { git commit --quiet -m "Ціни за $(Get-Date -Format 'yyyy-MM-dd')" }
