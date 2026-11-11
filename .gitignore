@@ -4,3 +4,4 @@ daily.log
 # Будуються під час публікації (.github/workflows/deploy.yml)
 site/data/compare/
 site/data/cities/*/extra.json
+site/data/chains/silpo/categories.json

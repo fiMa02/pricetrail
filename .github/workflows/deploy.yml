@@ -39,6 +39,8 @@ jobs:
       # Похідні дані будуємо тут, а не комітимо щодня (вони великі й повністю виводяться з products.json):
       # порівняння міст (data/compare) і спільний каталог (data/cities/*/extra.json).
       - run: node scraper/compare.js && node scraper/fallback.js
+      # Відповідність підкатегорій АТБ і Сільпо (data/chains/silpo/categories.json) — для порівняння мереж у тестовій копії.
+      - run: node scraper/chain-categories.js
       # Тестова копія: сторінка й скрипти з гілки silpo-test у site/test/, дані — спільні (../data),
       # каталоги інших мереж (data/chains) щодня збирає daily.ps1 у main; з тієї гілки — лише якщо в main їх немає.
       - name: Тестова копія (/test/)
