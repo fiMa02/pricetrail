@@ -102,6 +102,15 @@ try {
         $silpoNote = if ($silpoProc.ExitCode -eq 0) { "Сільпо: зібрано міст $n" } else { "Сільпо: ЧАСТКОВО (код $($silpoProc.ExitCode)), зібрано міст $n" }
     }
     Write-Host $silpoNote
+    # Акції «Траш!» (тестова копія) — після Сільпо: розділи товарів беруться з його каталогу. Кілька секунд; збій не зриває публікацію.
+    Write-Host '== Акції «Траш!»'
+    try {
+        $thrashOut = @(node scraper/thrash.js | ForEach-Object { Write-Host $_; $_ })
+        $thrashNote = if ($LASTEXITCODE -eq 0) { $thrashOut | Where-Object { $_ -match '^Траш!:' } | Select-Object -Last 1 } else { "Траш!: ПОМИЛКА (код $LASTEXITCODE)" }
+    } catch {
+        $thrashNote = "Траш!: ПОМИЛКА ($_)"
+    }
+    if ($thrashNote) { $silpoNote = "$silpoNote`r`n$thrashNote" }
     # Раз на тиждень (у неділю) — знімок рівня цін у всіх містах АТБ для мапи на головній (≈45 хв).
     # Його збій не зриває щоденну публікацію: на мапі лишається знімок минулого тижня.
     if ($started.DayOfWeek -eq [DayOfWeek]::Sunday) {
