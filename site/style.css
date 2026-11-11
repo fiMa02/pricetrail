@@ -106,11 +106,9 @@ svg { flex: none; }
   background: var(--surface); border: 1px solid var(--line); color: var(--ink); text-decoration: none;
 }
 .fav-link[aria-current] { color: var(--sale); }
-.theme-btn { cursor: pointer; padding: 0; font: inherit; }
-.theme-btn:hover { border-color: color-mix(in srgb, var(--accent) 40%, var(--line)); }
-.theme-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+#settingsLink[aria-current] { color: var(--accent); }
+#settingsLink[aria-current] svg { fill: none; }
 @media (max-width: 380px) { .fav-link { width: 36px; height: 36px; } .top__actions { gap: 6px; } }
-.theme-btn svg { width: 19px; height: 19px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
 .fav-link__n[hidden] { display: none; }
 .fav-link:hover { border-color: color-mix(in srgb, var(--sale) 40%, var(--line)); }
 .fav-link svg, .fav-btn svg, .fav-toggle svg, .toast svg {
@@ -789,3 +787,10 @@ th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--lin
 @media (max-width: 440px) { .chain-pick { font-size: 13px; padding: 0 24px 0 10px; background-position: right 7px center; } }
 /* На телефоні з вибором мережі в шапці не вміщаються логотип, мережа, місто й три кнопки — логотип ховаємо */
 @media (max-width: 440px) { .top:has(#chainSel:not([hidden])) .logo { display: none; } }
+
+/* Налаштування */
+.settings-row { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px 24px; padding: 6px 0; }
+.settings-row > div:first-child { display: grid; gap: 2px; }
+.settings-seg button { display: inline-flex; align-items: center; gap: 6px; }
+.settings-seg svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.settings-note { margin-top: 12px; }

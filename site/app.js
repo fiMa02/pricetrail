@@ -213,39 +213,52 @@ function initChainPick() {
   };
 }
 
-// Тема: як у системі → темна → світла → як у системі. Саму тему ставить applyTheme з index.html.
+// ---------- Налаштування (#/settings) ----------
+// Зберігаються в браузері (store). Кожен розділ — панель з рядками «назва — перемикач»; нові налаштування — нові рядки.
+
+// Тема: як у системі, світла чи темна. Саму тему ставить applyTheme з index.html (до першого малювання).
 const THEMES = {
-  auto: ['Тема як у системі', '<circle cx="12" cy="12" r="8"/><path d="M12 4a8 8 0 0 1 0 16Z" fill="currentColor"/>'],
-  dark: ['Темна тема', '<path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5Z"/>'],
+  auto: ['Як у системі', '<circle cx="12" cy="12" r="8"/><path d="M12 4a8 8 0 0 1 0 16Z" fill="currentColor"/>'],
   light: [
-    'Світла тема',
+    'Світла',
     '<circle cx="12" cy="12" r="4"/><path d="M12 2.5v2M12 19.5v2M2.5 12h2M19.5 12h2M5.3 5.3l1.4 1.4M17.3 17.3l1.4 1.4M5.3 18.7l1.4-1.4M17.3 6.7l1.4-1.4"/>',
   ],
+  dark: ['Темна', '<path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5Z"/>'],
 };
-const THEME_NEXT = { auto: 'dark', dark: 'light', light: 'auto' };
-function initTheme() {
-  const btn = $('#themeBtn');
-  const show = () => {
-    const t = THEMES[store.get('theme')] ? store.get('theme') : 'auto';
-    const [label, icon] = THEMES[t];
-    btn.innerHTML = `<svg viewBox="0 0 24 24" aria-hidden="true">${icon}</svg>`;
-    btn.title = `${label}. Натисніть, щоб змінити на: ${THEMES[THEME_NEXT[t]][0].toLowerCase()}`;
-    btn.setAttribute('aria-label', `${label} (змінити)`);
-    return t;
-  };
-  show();
-  btn.onclick = () => {
-    const next = THEME_NEXT[show()];
-    if (next === 'auto') {
-      try {
-        localStorage.removeItem('theme');
-      } catch {}
-    } else store.set('theme', next);
-    window.applyTheme?.();
-    show();
+const currentTheme = () => (THEMES[store.get('theme')] ? store.get('theme') : 'auto');
+function setTheme(t) {
+  if (t === 'auto') {
+    try {
+      localStorage.removeItem('theme');
+    } catch {}
+  } else store.set('theme', t);
+  window.applyTheme?.();
+}
+
+function renderSettings() {
+  document.querySelector('.top').classList.add('is-product');
+  document.title = 'Налаштування — PriceTrail';
+  scrollTo(0, 0);
+  const seg = (name, options, value) =>
+    `<div class="seg settings-seg" role="group" aria-label="${esc(name)}">${Object.entries(options)
+      .map(([k, [label, icon]]) => `<button type="button" data-set="${name}" data-v="${k}" aria-pressed="${k === value}">${icon ? `<svg viewBox="0 0 24 24" aria-hidden="true">${icon}</svg>` : ''}${esc(label)}</button>`)
+      .join('')}</div>`;
+  app.innerHTML = `${backLink()}<h1 class="page-title">Налаштування</h1>
+    <section class="panel settings">
+      <div class="panel__head"><h2>Вигляд</h2></div>
+      <div class="settings-row">
+        <div><b>Тема</b><span class="note">«Як у системі» — світла чи темна, як налаштовано на пристрої.</span></div>
+        ${seg('theme', THEMES, currentTheme())}
+      </div>
+    </section>
+    <p class="note settings-note">Налаштування зберігаються лише в цьому браузері.</p>`;
+  app.querySelector('.settings').onclick = (e) => {
+    const b = e.target.closest('[data-set]');
+    if (!b) return;
+    if (b.dataset.set === 'theme') setTheme(b.dataset.v);
+    for (const x of app.querySelectorAll(`[data-set="${b.dataset.set}"]`)) x.setAttribute('aria-pressed', x === b);
   };
 }
-initTheme();
 
 // Висота шапки — щоб «← назад» прилипав одразу під нею (шапка змінюється: фільтри, перенос рядків).
 const topBar = $('.top');
@@ -2715,7 +2728,7 @@ let favFromBack = '#/';
 const backLink = (to = backTo) => {
   const p = to.startsWith('#/p/') && state.byId.get(parseInt(to.slice(4), 10));
   const name = p && (p.name.length > 40 ? `${p.name.slice(0, 38).trim()}…` : p.name);
-  const label = p ? name : to.startsWith('#/today') ? 'Що змінилося' : to === '#/fav' ? 'Обране' : to === '#/list' ? 'Список покупок' : BETA && to !== '#/all' ? 'Головна' : 'Усі товари';
+  const label = p ? name : to.startsWith('#/today') ? 'Що змінилося' : to === '#/fav' ? 'Обране' : to === '#/list' ? 'Список покупок' : to === '#/settings' ? 'Налаштування' : BETA && to !== '#/all' ? 'Головна' : 'Усі товари';
   return `<a class="back" href="${esc(to)}">← ${esc(label)}</a>`;
 };
 
@@ -2735,6 +2748,9 @@ function route(e) {
   const restore = from?.startsWith('#/p/') || (from === '#/fav' && location.hash !== '#/fav') ? scrollMemo.get(pageKey(location.hash)) : null;
   const m = location.hash.match(/^#\/p\/(\d+)(?:\/([\w-]+))?/);
   const onFavs = location.hash === '#/fav';
+  const onSettings = location.hash === '#/settings';
+  if (onSettings) $('#settingsLink').setAttribute('aria-current', 'page');
+  else $('#settingsLink').removeAttribute('aria-current');
   const onCart = location.hash === '#/list';
   // «Назад» зі списку покупок — туди, звідки його відкрили (але не на товар, відкритий зі списку).
   if (onCart && from && from !== '#/list' && !(from.startsWith('#/p/') && backTo === '#/list')) cartFrom = from;
@@ -2749,6 +2765,7 @@ function route(e) {
       if (m) renderProduct(Number(m[1]), m[2]);
       else if (isHome()) renderHome();
       else if (onFavs) renderFavs();
+      else if (onSettings) renderSettings();
       else if (onCart) {
         scrollTo(0, 0);
         renderCart();
