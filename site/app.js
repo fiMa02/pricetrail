@@ -1036,7 +1036,7 @@ function card(p, from, extra = '') {
         ${perHtml(p)}
       </div>
       ${p.cardPrice ? `<div class="atbcard" title="Ціна при оплаті карткою АТБ">${CARD_ICON}<b>${fmtPrice(p.cardPrice)}</b> з карткою</div>` : ''}
-      ${chainOf(p) === 'thrash' ? thrashVsHtml(p) : ''}
+      ${p._view || p.from ? '' : vsTileHtml(p)}
       <div class="card__flags">${extra}${flags}</div>
     </div>
   </a>`;
@@ -2115,51 +2115,52 @@ async function renderVs(el, p) {
 // Артикул «Траш!» = код товару Сільпо, тож товар Сільпо знаходимо точно; товар АТБ — за назвою й фасовкою (autoMatch).
 const THRASH_ID_BASE = 20_000_000;
 const SILPO_ID_BASE = 10_000_000;
-function thrashMatch(p) {
-  if (chainOf(p) === 'silpo') return state.byId.get(p.id - SILPO_ID_BASE + THRASH_ID_BASE) || null;
-  let best = null;
-  let top = 0;
-  for (const x of state.thrash) {
-    if (p.group && x.group && x.group !== p.group) continue;
-    const sc = matchScore(p, x);
-    if (sc > top && autoMatch(p, x, sc)) [best, top] = [x, sc];
-  }
-  return best;
-}
-// Такий самий товар в АТБ (у цьому місті) чи Сільпо для акції «Траш!»: Сільпо — за артикулом, АТБ — за назвою й фасовкою.
-// Пари рахуємо раз на місто (state.all змінюється з містом): сотні акцій × тисячі товарів АТБ того самого розділу.
+// Такий самий товар іншої мережі: Сільпо ↔ «Траш!» — за кодом (артикул «Траш!» = код Сільпо), решта — за назвою
+// й фасовкою (autoMatch) у тому самому розділі. Пару, яку користувач вибрав чи вимкнув у «Порівнянні» на сторінці
+// товару (pairs), беремо як є. Пари рахуємо раз на місто (state.all змінюється з містом) — плиток сотні.
 let peersFor = null;
 let peers = new Map();
-function thrashPeer(t, chain) {
+const vsOther = (p) => (chainOf(p) === 'atb' ? 'silpo' : 'atb'); // з якою мережею порівнює renderVs
+function peerOf(p, chain) {
+  const mine = chainOf(p);
+  if (chain === mine) return null;
   if (peersFor !== state.all) {
     peersFor = state.all;
     peers = new Map();
   }
-  const key = `${chain}/${t.id}`;
+  if (chain === vsOther(p) && p.id in pairs) {
+    const x = pairs[p.id] && state.byId.get(pairs[p.id]);
+    if (!pairs[p.id] || (x && chainOf(x) === chain)) return x || null;
+  }
+  const key = `${chain}/${p.id}`;
   if (peers.has(key)) return peers.get(key);
-  let best = chain === 'silpo' ? state.byId.get(t.id - THRASH_ID_BASE + SILPO_ID_BASE) || null : null;
-  if (chain === 'atb') {
+  let best = null;
+  if (mine === 'silpo' && chain === 'thrash') best = state.byId.get(p.id - SILPO_ID_BASE + THRASH_ID_BASE) || null;
+  else if (mine === 'thrash' && chain === 'silpo') best = state.byId.get(p.id - THRASH_ID_BASE + SILPO_ID_BASE) || null;
+  else {
     let top = 0;
-    for (const x of state.all) {
-      if (chainOf(x) !== 'atb' || x.from || (t.group && x.group !== t.group)) continue;
-      const sc = matchScore(t, x);
-      if (sc > top && autoMatch(t, x, sc)) [best, top] = [x, sc];
+    for (const x of chain === 'thrash' ? state.thrash : state.all) {
+      if (chainOf(x) !== chain || x.from || (p.group && x.group && x.group !== p.group)) continue;
+      const sc = matchScore(p, x);
+      if (sc > top && autoMatch(p, x, sc)) [best, top] = [x, sc];
     }
   }
   peers.set(key, best);
   return best;
 }
-// На плитці акції «Траш!» — ціна такого самого товару в АТБ і Сільпо та на скільки там дорожче чи дешевше.
-function thrashVsHtml(t) {
-  const lines = ['atb', ...(state.chains.includes('silpo') ? ['silpo'] : [])]
-    .map((chain) => [chain, thrashPeer(t, chain)])
+const thrashMatch = (p) => peerOf(p, 'thrash');
+// На плитці — ціна такого самого товару в інших мережах міста і на скільки там дорожче (+, червоним)
+// чи дешевше (−, зеленим), ніж у цій.
+function vsTileHtml(p) {
+  const lines = ['atb', 'silpo', 'thrash']
+    .filter((c) => c !== chainOf(p) && (c === 'thrash' ? state.thrash.length : state.chains.includes(c)))
+    .map((chain) => [chain, peerOf(p, chain)])
     .filter(([, x]) => x)
     .map(([chain, x]) => {
-      // Відсоток — на скільки в іншій мережі дорожче (+, червоним) чи дешевше (−, зеленим), ніж у «Траш!».
-      const { d } = vsDiff(t, x);
+      const { d } = vsDiff(p, x);
       return `<span class="card__vs-row"><span>${CHAINS[chain]} ${fmtPrice(x.price)}</span><b class="${d > 0 ? 'bad' : d < 0 ? 'good' : ''}">${d === 0 ? '=' : `${d > 0 ? '+' : '−'}${Math.abs(d)}%`}</b></span>`;
     });
-  return lines.length ? `<div class="card__vs" title="Ціна такого самого товару в цьому місті; відсоток — на скільки там дорожче (+) чи дешевше (−), ніж у «Траш!»">${lines.join('')}</div>` : '';
+  return lines.length ? `<div class="card__vs" title="Ціна такого самого товару в цьому місті; відсоток — на скільки там дорожче (+) чи дешевше (−), ніж у ${CHAINS[chainOf(p)]}">${lines.join('')}</div>` : '';
 }
 // На скільки товар b дешевший чи дорожчий за a: за одиницю (шт чи кг), а як одиниці різні — за 1 кг/л.
 function vsDiff(a, b) {
@@ -2192,7 +2193,7 @@ function renderThrashVs(el, p) {
 }
 // Товар «Траш!» у Сільпо — той самий за кодом (артикул «Траш!» = код товару Сільпо).
 function renderThrashSilpo(el, t) {
-  const x = thrashPeer(t, 'silpo');
+  const x = peerOf(t, 'silpo');
   if (x) pairPanel(el, 'Порівняння з Сільпо', t, x, `Той самий товар: артикул «Траш!» збігається з кодом Сільпо. Ціна Сільпо — у місті ${esc(state.city.name)}.`);
   else {
     el.hidden = false;
