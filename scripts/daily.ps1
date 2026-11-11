@@ -24,6 +24,7 @@ $result = ''
 $scrapeOut = @()
 $snapNote = ''
 $silpoNote = ''
+$silpoProc = $null
 
 # Короткий звіт на робочому столі після кожного запуску (перезаписується).
 function Write-StatusFile {
@@ -77,18 +78,28 @@ try {
     }
     Invoke-Step 'git pull' { git pull --rebase --quiet }
     Invoke-Step 'npm ci' { npm ci --silent }
+    # Сільпо (для тестової копії сайту, /test/) збираємо паралельно з АТБ: різні сайти й різні теки даних.
+    # Його вивід — у файли, у журнал дописуємо після АТБ. Збій Сільпо не зриває публікацію цін АТБ.
+    $silpoLog = Join-Path $root '.scratch\silpo-daily.log'
+    New-Item -ItemType Directory -Force (Split-Path $silpoLog) | Out-Null
+    try {
+        $silpoProc = Start-Process node -ArgumentList 'scraper/silpo.js' -WorkingDirectory $root -NoNewWindow -PassThru `
+            -RedirectStandardOutput $silpoLog -RedirectStandardError "$silpoLog.err"
+        $null = $silpoProc.Handle # без цього в PowerShell 5.1 ExitCode після завершення буває порожнім
+    } catch {
+        $silpoNote = "Сільпо: ПОМИЛКА запуску ($_)"
+    }
     Write-Host '== Збір цін'
     # Виводимо в журнал і водночас запам'ятовуємо — для звіту на робочому столі.
     $scrapeOut = @(npm run scrape | ForEach-Object { Write-Host $_; $_ })
     if ($LASTEXITCODE -ne 0) { throw "Збір цін завершився з кодом $LASTEXITCODE" }
-    # Сільпо (для тестової копії сайту, /test/). Його збій не зриває публікацію цін АТБ.
-    Write-Host '== Збір цін Сільпо'
-    try {
-        $silpoOut = @(node scraper/silpo.js | ForEach-Object { Write-Host $_; $_ })
+    if ($silpoProc) {
+        Write-Host '== Збір цін Сільпо (йшов паралельно)'
+        $silpoProc.WaitForExit()
+        $silpoOut = @(Get-Content $silpoLog -Encoding UTF8 -ErrorAction SilentlyContinue)
+        $silpoOut + @(Get-Content "$silpoLog.err" -Encoding UTF8 -ErrorAction SilentlyContinue) | ForEach-Object { Write-Host $_ }
         $n = @($silpoOut | Where-Object { $_ -match '^\[.+\] \d+ товарів' }).Count
-        $silpoNote = if ($LASTEXITCODE -eq 0) { "Сільпо: зібрано міст $n" } else { "Сільпо: ЧАСТКОВО (код $LASTEXITCODE), зібрано міст $n" }
-    } catch {
-        $silpoNote = "Сільпо: ПОМИЛКА ($_)"
+        $silpoNote = if ($silpoProc.ExitCode -eq 0) { "Сільпо: зібрано міст $n" } else { "Сільпо: ЧАСТКОВО (код $($silpoProc.ExitCode)), зібрано міст $n" }
     }
     Write-Host $silpoNote
     # Раз на тиждень (у неділю) — знімок рівня цін у всіх містах АТБ для мапи на головній (≈45 хв).
@@ -129,6 +140,8 @@ try {
     Write-Host "ПОМИЛКА: $_"
     exit 1
 } finally {
+    # Збір АТБ упав, а Сільпо ще йде — зупиняємо, щоб не лишився висіти після завершення завдання.
+    if ($silpoProc -and -not $silpoProc.HasExited) { $silpoProc.Kill() }
     [Win32.Power]::SetThreadExecutionState($ES_CONTINUOUS) | Out-Null
     try { Write-StatusFile } catch { Write-Host "Не вдалося записати звіт: $_" }
     Stop-Transcript | Out-Null
