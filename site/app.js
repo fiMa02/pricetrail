@@ -2227,7 +2227,9 @@ function renderChainVs(el, p) {
           : ''
       }
     </div>`;
-  el.innerHTML = `<div class="vs-head">${head()}</div><div class="vs-body"${open ? '' : ' hidden'}></div>`;
+  // Порівняння на плитках вимкнено (типово) — підказуємо, де його ввімкнути.
+  const hint = showTileVs() ? '' : '<p class="note vs-hint">💡 Таке порівняння можна бачити й під кожною плиткою — увімкніть «Порівняння на плитках» у <a href="#/settings">налаштуваннях</a>.</p>';
+  el.innerHTML = `<div class="vs-head">${head()}</div><div class="vs-body"${open ? '' : ' hidden'}></div>${hint}`;
   el.classList.toggle('is-collapsed', !open);
   const body = el.querySelector('.vs-body');
   const refreshHead = () => {
