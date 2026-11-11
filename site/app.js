@@ -1938,9 +1938,17 @@ function vsRow(p, picked) {
     <span class="vs-row__price"><b class="${p.oldPrice ? 'price--sale' : ''}">${fmtPrice(p.price)} ₴</b>${perHtml(p)}</span>
   </button>`;
 }
-function renderVs(el, p) {
+// Відповідні підкатегорії іншої мережі: { atb: { підкатегорія: [підкатегорії Сільпо] }, silpo: {…} } —
+// будує scraper/chain-categories.js (назви підкатегорій у мережах різні).
+let chainCats;
+const loadChainCats = () =>
+  (chainCats ||= fetch('data/chains/silpo/categories.json')
+    .then((r) => (r.ok ? r.json() : null))
+    .catch(() => null));
+async function renderVs(el, p) {
   const mine = chainOf(p);
   const other = state.chains.find((c) => c !== mine);
+  const cats = await loadChainCats();
   const pool = state.all.filter((x) => chainOf(x) === other && !x.from);
   const ranked = pool
     .map((x) => [x, matchScore(p, x)])
@@ -1948,6 +1956,24 @@ function renderVs(el, p) {
     .sort((a, b) => b[1] - a[1]);
   const chosen = pairs[p.id];
   const pick = chosen === 0 ? null : chosen ? state.byId.get(chosen) : ranked[0] && autoMatch(p, ranked[0][0], ranked[0][1]) ? ranked[0][0] : null;
+  // Такого самого товару немає — схожі й пошук лише з відповідних підкатегорій іншої мережі
+  // (якщо відповідність невідома чи там порожньо — з того самого розділу).
+  let near = pool;
+  let nearCats = [];
+  let nearWhat = 'Підкатегорія';
+  if (!pick) {
+    const want = new Set(cats?.[mine]?.[p.category] || []);
+    if (pool.some((x) => x.category === p.category)) want.add(p.category);
+    near = pool.filter((x) => want.has(x.category));
+    nearCats = [...want].filter((c) => near.some((x) => x.category === c));
+    if (!near.length) {
+      near = pool.filter((x) => x.group === p.group);
+      nearCats = p.group ? [p.group] : [];
+      nearWhat = 'Розділ';
+    }
+  }
+  const nearSet = new Set(near);
+  const nearRanked = pick ? ranked : ranked.filter(([x]) => nearSet.has(x));
   let q = '';
   const paint = () => {
     // Висновок — різниця за одиницю товару (шт чи кг), під ним дрібніше — за 1 кг/л (якщо вона відома й інша).
@@ -1967,12 +1993,12 @@ function renderVs(el, p) {
     }
     const words = norm(q).split(/\s+/).filter(Boolean);
     const list = words.length
-      ? pool
+      ? near
           .filter((x) => words.every((w) => x._q.includes(w)))
           .map((x) => [x, matchScore(p, x)])
           .sort((a, b) => b[1] - a[1])
           .slice(0, 8)
-      : ranked.slice(0, 6);
+      : nearRanked.slice(0, 6);
     const side = (x) => `<a class="vs-side" href="#/p/${x.id}">
         ${chainTag(x)}
         <img src="${esc(x.img)}" alt="">
@@ -1989,6 +2015,7 @@ function renderVs(el, p) {
       }
       <div class="vs-pick">
         <div class="vs-pick__head"><b>${pick ? 'Інший товар для порівняння' : 'Схожі товари'}</b>${pick ? '<button type="button" class="vs-none">Не порівнювати</button>' : ''}</div>
+        ${nearCats.length ? `<p class="note">${nearCats.length > 1 ? 'Підкатегорії' : nearWhat} в ${CHAINS[other]}: ${nearCats.map(esc).join(', ')}</p>` : ''}
         <input type="search" class="vs-q" placeholder="Знайти в ${CHAINS[other]}" value="${esc(q)}" autocomplete="off">
         <div class="vs-list">${list.length ? list.map(([x]) => vsRow(x, pick?.id)).join('') : `<p class="note">${words.length ? 'Нічого не знайдено' : 'Схожих товарів немає'}</p>`}</div>
       </div>`;
