@@ -4,7 +4,7 @@ const DAY = 86400000;
 
 const $ = (sel) => document.querySelector(sel);
 const app = $('#app');
-const state = { cities: [], chainCities: {}, chain: 'atb', city: null, chains: ['atb'], all: [], products: [], byId: new Map(), meta: null, shown: PAGE, shards: new Map() };
+const state = { cities: [], chainCities: {}, chain: 'atb', city: null, chains: ['atb'], thrash: [], all: [], products: [], byId: new Map(), meta: null, shown: PAGE, shards: new Map() };
 
 const fmtPrice = (v) => v.toFixed(2).replace('.', ',');
 const parseDate = (s) => Date.UTC(+s.slice(0, 4), +s.slice(5, 7) - 1, +s.slice(8, 10));
@@ -140,10 +140,12 @@ const cityDir = () => `data/cities/${state.city.slug}`;
 // ---------- ТЕСТ: кілька мереж ----------
 // Каталоги інших мереж (поки Сільпо — один магазин у Хмельницькому) лежать у data/chains/<мережа>/<місто>/
 // у форматі АТБ, з полем chain; будує scraper/silpo.js. Товари АТБ поля chain не мають.
-const CHAINS = { atb: 'АТБ', silpo: 'Сільпо' };
-const CHAIN_SITE = { atb: ['https://www.atbmarket.com', 'atbmarket.com'], silpo: ['https://silpo.ua', 'silpo.ua'] };
+// «Траш!» — лише акції, одні на всю мережу: data/chains/thrash/ без міст (будує scraper/thrash.js).
+const CHAINS = { atb: 'АТБ', silpo: 'Сільпо', thrash: 'Траш!' };
+const CHAIN_SITE = { atb: ['https://www.atbmarket.com', 'atbmarket.com'], silpo: ['https://silpo.ua', 'silpo.ua'], thrash: ['https://thrash.ua', 'thrash.ua'] };
 const chainOf = (p) => p.chain || 'atb';
-const chainDir = (chain, slug = state.city.slug) => (chain === 'atb' ? `data/cities/${slug}` : `data/chains/${chain}/${slug}`);
+const chainDir = (chain, slug = state.city.slug) =>
+  chain === 'atb' ? `data/cities/${slug}` : chain === 'thrash' ? 'data/chains/thrash' : `data/chains/${chain}/${slug}`;
 // Позначка мережі (на сторінці товару й у порівнянні).
 const chainTag = (p) => `<span class="chain chain--${chainOf(p)}">${CHAINS[chainOf(p)]}</span>`;
 
@@ -335,18 +337,22 @@ async function loadData() {
     fetch(file)
       .then((r) => (r.ok ? r.json() : fallback))
       .catch(() => fallback);
-  const [own, extra, meta, silpo, silpoMeta] = await Promise.all([
+  const [own, extra, meta, silpo, silpoMeta, thrashCities] = await Promise.all([
     fetch(`${cityDir()}/products.json`).then((r) => r.json()),
     optional(`${cityDir()}/extra.json`, []),
     fetch(`${cityDir()}/meta.json`).then((r) => r.json()),
     optional(`${chainDir('silpo')}/products.json`, []),
     optional(`${chainDir('silpo')}/meta.json`, null),
+    optional('data/chains/thrash/cities.json', []),
   ]);
+  // Акції «Траш!» — якщо в місті є його магазини. До state.chains не входять: це не каталог, а лише акції.
+  const thrash = thrashCities.some((c) => c.slug === state.city.slug) ? await optional('data/chains/thrash/products.json', []) : [];
+  state.thrash = thrash;
   // Мережі, що є в цьому місті (для порівняння на сторінці товару).
   state.chains = silpo.length ? ['atb', 'silpo'] : ['atb'];
   const collator = new Intl.Collator('uk');
   // state.all — товари всіх мереж міста (сторінки товарів, обране, порівняння); state.products — лише вибраної мережі.
-  state.all = own.concat(extra, silpo).sort((a, b) => collator.compare(a.name, b.name));
+  state.all = own.concat(extra, silpo, thrash).sort((a, b) => collator.compare(a.name, b.name));
   state.byId = new Map();
   state.shards = new Map();
   for (const p of state.all) {
@@ -1469,16 +1475,17 @@ function renderHome() {
   const d = todayData();
   const tabs = d ? d.tabs.filter((t) => t[2].length) : [];
   const all = `<a class="home-all" href="#/all">Усі товари <b>${state.products.length.toLocaleString('uk')}</b> →</a>`;
+  const thrash = state.thrash.length ? `<a class="home-all home-thrash" href="#/thrash">Акції «Траш!» <b>${state.thrash.length}</b> →</a>` : '';
   if (!tabs.length) {
     app.innerHTML = `<section class="panel home-map" id="homeMap"><div class="sk" style="height:320px;border-radius:12px"></div></section>
-      <div class="empty"><b>😌</b>${d ? 'Сьогодні ціни не змінилися' : 'Змін поки немає'}<br><span class="note">Знайдіть товар через пошук угорі</span></div>${all}`;
+      <div class="empty"><b>😌</b>${d ? 'Сьогодні ціни не змінилися' : 'Змін поки немає'}<br><span class="note">Знайдіть товар через пошук угорі</span></div>${all}${thrash}`;
     renderHomeMap($('#homeMap'));
     return;
   }
   const stale = d.date !== state.meta.updated ? ` (останній збір у цьому місті — ${fmtDate(parseDate(state.meta.updated))})` : '';
   app.innerHTML = `<section class="panel home-map" id="homeMap"><div class="sk" style="height:320px;border-radius:12px"></div></section>
     <div class="home-head"><div><h1 class="page-title">Що змінилося ${fmtDate(parseDate(d.date), false)}</h1>
-      <p class="note today-sub">${esc(state.city.name)}: зміни порівняно з попереднім днем${stale}.</p></div>${all}</div>
+      <p class="note today-sub">${esc(state.city.name)}: зміни порівняно з попереднім днем${stale}.</p></div><div class="home-links">${all}${thrash}</div></div>
     ${tabs
       .map(
         ([k, label, list]) => `<section class="home-block">
@@ -1792,7 +1799,9 @@ async function renderProduct(id, slug) {
             ? `<p class="elsewhere-box">Ціни та історія — з міста <b>${esc(cityName(p.from))}</b>.${state.byId.has(id) ? ` <a href="#/p/${id}">Показати для міста ${esc(state.city.name)}</a>` : ''}</p>`
             : p.from
               ? `<p class="elsewhere-box">Цього товару немає в магазині АТБ у місті ${esc(state.city.name)}. Ціни та історія — з міста <b>${esc(cityName(p.from))}</b>, де він є.</p>`
-              : ''
+              : chainOf(p) === 'thrash'
+                ? `<p class="elsewhere-box">Акція «Траш!»${p.until ? ` до ${fmtDate(parseDate(p.until), false)}` : ''}, у всіх магазинах мережі. Звичайних цін «Траш!» не публікує — є лише ціна до знижки.</p>`
+                : ''
         }
         <div class="product__price">
           <span class="price ${p.oldPrice ? 'price--sale' : ''}">${fmtPrice(p.price)} <small>грн/${esc(p.unit)}</small></span>
@@ -1815,7 +1824,8 @@ async function renderProduct(id, slug) {
       <div class="chart" id="chart"><div class="sk" style="height:280px;border-radius:12px"></div></div>
       <div id="stats"></div>
     </section>
-    ${state.chains.length > 1 && !p._view ? '<section class="panel vs" id="vs"></section>' : ''}
+    ${(state.chains.length > 1 || chainOf(p) === 'thrash') && !p._view ? '<section class="panel vs" id="vs"></section>' : ''}
+    ${state.thrash.length && chainOf(p) !== 'thrash' && !p._view ? '<section class="panel vs" id="thrashVs" hidden></section>' : ''}
     ${
       chainOf(p) === 'atb'
         ? `<section class="panel" id="compare">
@@ -1826,6 +1836,7 @@ async function renderProduct(id, slug) {
     }`;
   bindFavTarget(p);
   if ($('#vs')) renderVs($('#vs'), p);
+  if ($('#thrashVs')) renderThrashVs($('#thrashVs'), p);
   if ($('#compare')) renderCompare($('#compare'), p);
   // Користувач побачив поточну ціну — знижка «з обраного» для цього товару вже не нова.
   if (!p._view && isFav(id) && favDrop(p, favs[id])) markSeen([id]);
@@ -1890,9 +1901,14 @@ const idf = (w) => {
 };
 const sameQty = (qa, qb) => qa.unit === qb.unit && Math.abs(qa.qty / qb.qty - 1) < 0.03;
 // Сами вибираємо лише той самий товар: схожа назва й та сама фасовка (або обидва вагові).
+// Відсоток у назві (жирність, міцність): «Вершки 33%» і «Вершки 10%» — різні товари, хоч слова й фасовка ті самі.
+const pctOf = (p) => (p._pct === undefined ? (p._pct = p.name.match(/(\d+(?:[.,]\d+)?)\s*%/)?.[1].replace(',', '.') ?? null) : p._pct);
 const autoMatch = (a, b, score) => {
   const qa = qtyOf(a);
   const qb = qtyOf(b);
+  const pa = pctOf(a);
+  const pb = pctOf(b);
+  if (pa && pb && +pa !== +pb) return false;
   return score >= MATCH_AUTO && (qa && qb ? sameQty(qa, qb) : !qa && !qb && a.unit === b.unit);
 };
 function matchScore(a, b) {
@@ -1962,7 +1978,7 @@ async function renderVs(el, p) {
   let nearCats = [];
   let nearWhat = 'Підкатегорія';
   if (!pick) {
-    const want = new Set(cats?.[mine]?.[p.category] || []);
+    const want = new Set(cats?.[mine === 'thrash' ? 'silpo' : mine]?.[p.category] || []);
     if (pool.some((x) => x.category === p.category)) want.add(p.category);
     near = pool.filter((x) => want.has(x.category));
     nearCats = [...want].filter((c) => near.some((x) => x.category === c));
@@ -2043,6 +2059,106 @@ async function renderVs(el, p) {
     if (row) setPair(+row.dataset.pick);
     else if (e.target.closest('.vs-none')) setPair(0);
   };
+}
+
+// ---------- ТЕСТ: акції «Траш!» ----------
+// Артикул «Траш!» = код товару Сільпо, тож товар Сільпо знаходимо точно; товар АТБ — за назвою й фасовкою (autoMatch).
+const THRASH_ID_BASE = 20_000_000;
+const SILPO_ID_BASE = 10_000_000;
+function thrashMatch(p) {
+  if (chainOf(p) === 'silpo') return state.byId.get(p.id - SILPO_ID_BASE + THRASH_ID_BASE) || null;
+  let best = null;
+  let top = 0;
+  for (const x of state.thrash) {
+    if (p.group && x.group && x.group !== p.group) continue;
+    const sc = matchScore(p, x);
+    if (sc > top && autoMatch(p, x, sc)) [best, top] = [x, sc];
+  }
+  return best;
+}
+// Товар АТБ (у цьому місті) чи Сільпо для акції «Траш!» — найсхожіший з тією самою фасовкою.
+function thrashPeer(t, chain) {
+  if (chain === 'silpo') return state.byId.get(t.id - THRASH_ID_BASE + SILPO_ID_BASE) || null;
+  let best = null;
+  let top = 0;
+  for (const x of state.all) {
+    if (chainOf(x) !== chain || x.from || (t.group && x.group !== t.group)) continue;
+    const sc = matchScore(t, x);
+    if (sc > top && autoMatch(t, x, sc)) [best, top] = [x, sc];
+  }
+  return best;
+}
+// На скільки товар b дешевший чи дорожчий за a: за одиницю (шт чи кг), а як одиниці різні — за 1 кг/л.
+function vsDiff(a, b) {
+  const same = a.unit === b.unit;
+  const m = same ? { a: a.price, b: b.price, what: `за 1 ${a.unit}` } : vsBasis(a, b);
+  const d = Math.round((m.b / m.a - 1) * 100);
+  return { d, text: d === 0 ? `однаково ${m.what}` : `на ${Math.abs(d)}% ${d < 0 ? 'дешевше' : 'дорожче'} ${m.what}` };
+}
+const untilText = (t) => (t.until ? `до ${fmtDate(parseDate(t.until), false)}` : '');
+
+function renderThrashVs(el, p) {
+  const t = thrashMatch(p);
+  if (!t) return;
+  const v = vsDiff(p, t);
+  const side = (x) => `<a class="vs-side" href="#/p/${x.id}">
+      ${chainTag(x)}
+      <img src="${esc(x.img)}" alt="">
+      <span class="vs-side__name">${esc(x.name)}</span>
+      <span class="vs-side__price"><b class="${x.oldPrice ? 'price--sale' : ''}">${fmtPrice(x.price)} <small>₴/${esc(x.unit)}</small></b>${x.oldPrice ? ` <s>${fmtPrice(x.oldPrice)}</s>` : ''}</span>
+      ${perHtml(x)}
+    </a>`;
+  el.hidden = false;
+  el.innerHTML = `<div class="panel__head"><h2>Акція в «Траш!»</h2></div>
+    <div class="vs-pair">${side(p)}<span class="vs-pair__vs">vs</span>${side(t)}</div>
+    <p class="vs-verdict vs-verdict--${v.d < 0 ? 'cheaper' : 'dearer'}">У «Траш!» ${v.text}</p>
+    <p class="note">Акція ${untilText(t)}, у всіх магазинах «Траш!».</p>`;
+}
+
+function renderThrash() {
+  document.querySelector('.top').classList.add('is-product');
+  document.title = 'Акції Траш! — PriceTrail';
+  const head = `${backLink('#/')}<h1 class="page-title">Акції «Траш!»</h1>`;
+  if (!state.thrash.length) {
+    app.innerHTML = `${head}<div class="empty"><b>🏷</b>У місті ${esc(state.city.name)} магазинів «Траш!» немає</div>`;
+    return;
+  }
+  const silpo = state.chains.includes('silpo');
+  // Пари рахуємо раз на місто: сотні акцій × тисячі товарів АТБ того самого розділу.
+  if (state._thrashFor !== state.all) {
+    state._thrashFor = state.all;
+    state._thrashPeers = new Map(state.thrash.map((t) => [t.id, { atb: thrashPeer(t, 'atb'), silpo: silpo ? thrashPeer(t, 'silpo') : null }]));
+  }
+  const peerHtml = (t, x, chain) => {
+    if (!x) return `<span class="thrash-peer thrash-peer--none">${CHAINS[chain]}: такого самого немає</span>`;
+    const v = vsDiff(x, t);
+    return `<a class="thrash-peer" href="#/p/${x.id}">${CHAINS[chain]}: <b class="${x.oldPrice ? 'price--sale' : ''}">${fmtPrice(x.price)} ₴</b>
+      <span class="${v.d < 0 ? 'good' : v.d > 0 ? 'bad' : ''}">у «Траш!» ${v.text}</span></a>`;
+  };
+  const order = (g) => (GROUPS.has(g) ? [...GROUPS.keys()].indexOf(g) : GROUPS.size);
+  const groups = new Map();
+  for (const t of state.thrash) (groups.get(t.group || 'Інше') || groups.set(t.group || 'Інше', []).get(t.group || 'Інше')).push(t);
+  const withAtb = state.thrash.filter((t) => state._thrashPeers.get(t.id).atb).length;
+  app.innerHTML = `${head}
+    <p class="note today-sub">${state.thrash.length} товарів зі знижкою — однаково в усіх магазинах «Траш!» (повного каталогу мережа не публікує).
+      Такий самий товар в АТБ (${esc(state.city.name)}) знайшовся для ${withAtb}.</p>
+    ${[...groups]
+      .sort((a, b) => order(a[0]) - order(b[0]) || a[0].localeCompare(b[0], 'uk'))
+      .map(
+        ([g, list]) => `<section class="home-block"><div class="section-head"><h2>${esc(g)} <small>${list.length}</small></h2></div>
+          <div class="thrash-list">${list
+            .map((t) => {
+              const peers = state._thrashPeers.get(t.id);
+              return `<div class="thrash-row">
+                <a href="#/p/${t.id}" class="thrash-row__main"><img src="${esc(t.img)}" alt="" loading="lazy">
+                  <span><span class="thrash-row__name">${esc(t.name)}</span>
+                  <span class="thrash-row__price"><b class="price--sale">${fmtPrice(t.price)} ₴</b>${t.oldPrice ? ` <s>${fmtPrice(t.oldPrice)}</s>` : ''} <span class="note">${untilText(t)}</span></span></span></a>
+                <div class="thrash-row__peers">${peerHtml(t, peers.atb, 'atb')}${silpo ? peerHtml(t, peers.silpo, 'silpo') : ''}</div>
+              </div>`;
+            })
+            .join('')}</div></section>`,
+      )
+      .join('')}`;
 }
 
 // ---------- Ціни в інших містах ----------
@@ -2545,7 +2661,7 @@ let favFromBack = '#/';
 const backLink = (to = backTo) => {
   const p = to.startsWith('#/p/') && state.byId.get(parseInt(to.slice(4), 10));
   const name = p && (p.name.length > 40 ? `${p.name.slice(0, 38).trim()}…` : p.name);
-  const label = p ? name : to.startsWith('#/today') ? 'Що змінилося' : to === '#/fav' ? 'Обране' : to === '#/list' ? 'Список покупок' : BETA && to !== '#/all' ? 'Головна' : 'Усі товари';
+  const label = p ? name : to.startsWith('#/today') ? 'Що змінилося' : to === '#/fav' ? 'Обране' : to === '#/list' ? 'Список покупок' : to === '#/thrash' ? 'Акції «Траш!»' : BETA && to !== '#/all' ? 'Головна' : 'Усі товари';
   return `<a class="back" href="${esc(to)}">← ${esc(label)}</a>`;
 };
 
@@ -2584,7 +2700,10 @@ function route(e) {
         renderCart();
       }
       else if (today) renderToday(today[1]);
-      else renderList();
+      else if (location.hash === '#/thrash') {
+        scrollTo(0, 0);
+        renderThrash();
+      } else renderList();
     } catch (err) {
       console.error(err);
       app.innerHTML = '<p class="status">Не вдалося показати сторінку.<br><button onclick="location.reload()">Оновити</button></p>';
