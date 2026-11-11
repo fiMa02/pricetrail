@@ -170,6 +170,12 @@ async function loadCities() {
   state.chainCities = { atb: state.cities };
   const silpoCities = silpo.map((x) => state.cities.find((c) => c.slug === x.slug) && { ...state.cities.find((c) => c.slug === x.slug), address: x.address }).filter(Boolean);
   if (silpoCities.length) state.chainCities.silpo = silpoCities;
+  // «Траш!» — лише акції, однакові в усіх його магазинах; міста — наші, де він є (адреси магазину немає).
+  const thrash = await fetch('data/chains/thrash/cities.json')
+    .then((r) => (r.ok ? r.json() : []))
+    .catch(() => []);
+  const thrashCities = state.cities.filter((c) => thrash.some((x) => x.slug === c.slug));
+  if (thrashCities.length) state.chainCities.thrash = thrashCities;
   state.chain = state.chainCities[store.get('chain')] ? store.get('chain') : 'atb';
   const saved = store.get('city');
   const all = state.cities.find((c) => c.slug === saved) || state.cities.find((c) => c.slug === 'kyiv') || state.cities[0];
@@ -337,16 +343,18 @@ async function loadData() {
     fetch(file)
       .then((r) => (r.ok ? r.json() : fallback))
       .catch(() => fallback);
-  const [own, extra, meta, silpo, silpoMeta, thrashCities] = await Promise.all([
+  const [own, extra, meta, silpo, silpoMeta] = await Promise.all([
     fetch(`${cityDir()}/products.json`).then((r) => r.json()),
     optional(`${cityDir()}/extra.json`, []),
     fetch(`${cityDir()}/meta.json`).then((r) => r.json()),
     optional(`${chainDir('silpo')}/products.json`, []),
     optional(`${chainDir('silpo')}/meta.json`, null),
-    optional('data/chains/thrash/cities.json', []),
   ]);
-  // Акції «Траш!» — якщо в місті є його магазини. До state.chains не входять: це не каталог, а лише акції.
-  const thrash = thrashCities.some((c) => c.slug === state.city.slug) ? await optional('data/chains/thrash/products.json', []) : [];
+  // Акції «Траш!» — якщо в місті є його магазини. До state.chains (порівняння каталогів) не входять: це лише акції.
+  const hasThrash = state.chainCities.thrash?.some((c) => c.slug === state.city.slug);
+  const [thrash, thrashMeta] = hasThrash
+    ? await Promise.all([optional('data/chains/thrash/products.json', []), optional('data/chains/thrash/meta.json', null)])
+    : [[], null];
   state.thrash = thrash;
   // Мережі, що є в цьому місті (для порівняння на сторінці товару).
   state.chains = silpo.length ? ['atb', 'silpo'] : ['atb'];
@@ -362,12 +370,15 @@ async function loadData() {
   }
   const products = state.all.filter((p) => chainOf(p) === state.chain);
   state.products = products;
-  const m = state.chain === 'silpo' && silpoMeta ? silpoMeta : meta;
+  const m = (state.chain === 'silpo' && silpoMeta) || (state.chain === 'thrash' && thrashMeta) || meta;
   state.meta = m;
   state.changes = await fetch(`${chainDir(state.chain)}/changes.json`)
     .then((r) => (r.ok ? r.json() : null))
     .catch(() => null);
-  $('#updated').textContent = `${state.city.name}, магазин ${CHAINS[state.chain]}: ${m.store.address} · ${m.productCount.toLocaleString('uk')} товарів · оновлено ${fmtDate(parseDate(m.updated))}`;
+  $('#updated').textContent =
+    state.chain === 'thrash'
+      ? `${state.city.name}, «Траш!»: лише акції, однакові в усіх магазинах мережі · ${m.productCount.toLocaleString('uk')} товарів · оновлено ${fmtDate(parseDate(m.updated))}`
+      : `${state.city.name}, магазин ${CHAINS[state.chain]}: ${m.store.address} · ${m.productCount.toLocaleString('uk')} товарів · оновлено ${fmtDate(parseDate(m.updated))}`;
 
   const groups = new Map();
   for (const p of products) groups.set(p.group || 'Інше', (groups.get(p.group || 'Інше') || 0) + 1);
@@ -1501,7 +1512,11 @@ function renderHome() {
   const d = todayData();
   const tabs = d ? d.tabs.filter((t) => t[2].length) : [];
   const all = `<a class="home-all" href="#/all">Усі товари <b>${state.products.length.toLocaleString('uk')}</b> →</a>`;
-  const thrash = state.thrash.length ? `<a class="home-all home-thrash" href="#/thrash">Акції «Траш!» <b>${state.thrash.length}</b> →</a>` : '';
+  const thrash = !state.thrash.length
+    ? ''
+    : state.chain === 'thrash'
+      ? '<a class="home-all home-thrash" href="#/thrash">Порівняти з АТБ і Сільпо →</a>'
+      : `<a class="home-all home-thrash" href="#/thrash">Акції «Траш!» <b>${state.thrash.length}</b> →</a>`;
   if (!tabs.length) {
     app.innerHTML = `<section class="panel home-map" id="homeMap"><div class="sk" style="height:320px;border-radius:12px"></div></section>
       <div class="empty"><b>😌</b>${d ? 'Сьогодні ціни не змінилися' : 'Змін поки немає'}<br><span class="note">Знайдіть товар через пошук угорі</span></div>${all}${thrash}`;
