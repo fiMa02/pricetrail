@@ -117,7 +117,9 @@ function perUnit(p) {
   if (!q || !(q.qty > 0) || q.qty === 1) return null;
   return { price: p.price / q.qty, unit: q.unit };
 }
-const perHtml = (p, cls = 'per') => (p._per ? `<span class="${cls}">${fmtPrice(p._per.price)} ₴/${p._per.unit}</span>` : '');
+// Ціна за кг / л / шт — лише якщо її ввімкнено в налаштуваннях (типово вимкнено).
+const showPer = () => store.get('per') === '1';
+const perHtml = (p, cls = 'per') => (p._per && showPer() ? `<span class="${cls}">${fmtPrice(p._per.price)} ₴/${p._per.unit}</span>` : '');
 
 // ---------- Дані ----------
 
@@ -235,6 +237,23 @@ function setTheme(t) {
   window.applyTheme?.();
 }
 
+// Сортування за ціною за кг / л / шт — лише коли цю ціну показуємо; інакше вибране сортування скидаємо.
+function applyPerSetting() {
+  const on = showPer();
+  for (const o of $('#sort').options) {
+    if (!o.value.startsWith('per-')) continue;
+    o.hidden = !on;
+    o.disabled = !on;
+  }
+  if (!on && filters.sort.startsWith('per-')) {
+    filters.sort = 'name';
+    $('#sort').value = 'name';
+    try {
+      sessionStorage.setItem('filters', JSON.stringify(filters));
+    } catch {}
+  }
+}
+
 function renderSettings() {
   document.querySelector('.top').classList.add('is-product');
   document.title = 'Налаштування — PriceTrail';
@@ -250,12 +269,20 @@ function renderSettings() {
         <div><b>Тема</b><span class="note">«Як у системі» — світла чи темна, як налаштовано на пристрої.</span></div>
         ${seg('theme', THEMES, currentTheme())}
       </div>
+      <div class="settings-row">
+        <div><b>Ціна за кг / л / шт</b><span class="note">На плитках і сторінці товару, а також сортування «Дешевші за 1 кг / л / шт».</span></div>
+        ${seg('per', { off: ['Не показувати'], on: ['Показувати'] }, showPer() ? 'on' : 'off')}
+      </div>
     </section>
     <p class="note settings-note">Налаштування зберігаються лише в цьому браузері.</p>`;
   app.querySelector('.settings').onclick = (e) => {
     const b = e.target.closest('[data-set]');
     if (!b) return;
     if (b.dataset.set === 'theme') setTheme(b.dataset.v);
+    if (b.dataset.set === 'per') {
+      store.set('per', b.dataset.v === 'on' ? '1' : '0');
+      applyPerSetting();
+    }
     for (const x of app.querySelectorAll(`[data-set="${b.dataset.set}"]`)) x.setAttribute('aria-pressed', x === b);
   };
 }
@@ -944,6 +971,7 @@ function bindFilters() {
   // На вузькому екрані поруч стоїть сортування — довга підказка не вміщається.
   if (matchMedia('(max-width: 520px)').matches) $('#q').placeholder = 'Пошук';
   $('#cat').value = filters.cat;
+  applyPerSetting();
   $('#sort').value = filters.sort;
   $('#sale').checked = filters.sale;
   $('#card').checked = filters.card;
@@ -1883,7 +1911,7 @@ async function renderProduct(id, slug) {
           ${p.oldPrice ? `<span class="old">${fmtPrice(p.oldPrice)}</span>` : ''}
           ${labelsHtml(p)}
           ${lowTag(p)}
-          ${p._per ? `<span class="product__per">${fmtPrice(p._per.price)} грн за 1 ${p._per.unit}</span>` : ''}
+          ${p._per && showPer() ? `<span class="product__per">${fmtPrice(p._per.price)} грн за 1 ${p._per.unit}</span>` : ''}
         </div>
         ${p.cardPrice ? `<div class="atbcard atbcard--big">${CARD_ICON}<b>${fmtPrice(p.cardPrice)} грн</b> при оплаті карткою АТБ <span class="note">(−${pct(p.cardPrice, p.price)}%)</span></div>` : ''}
         ${honestBox(p)}
