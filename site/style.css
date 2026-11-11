@@ -658,6 +658,8 @@ th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--lin
   .card:hover .cart-btn, .card .cart-btn:focus-visible { opacity: 1; }
 }
 .cart-toggle[aria-pressed=true] { color: var(--accent); background: var(--accent-soft); border-color: transparent; }
+.cart-ctl { display: inline-flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.cart-ctl .cart-row__qty button { font: inherit; font-size: 17px; color: inherit; cursor: pointer; }
 .cart-rows { display: grid; }
 .cart-chain + .cart-chain { margin-top: 18px; }
 .cart-chain__head { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; padding-bottom: 8px; border-bottom: 1px solid var(--line); }

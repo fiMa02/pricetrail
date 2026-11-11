@@ -674,8 +674,13 @@ function updateCartBadge() {
 
 const cartBtn = (p) =>
   `<button class="cart-btn" data-cart="${p.id}" aria-pressed="${inCart(p.id)}" aria-label="${inCart(p.id) ? 'Прибрати зі списку покупок' : 'Додати до списку покупок'}">${BAG}</button>`;
+// На сторінці товару: кнопка списку, а коли товар у списку — ще й кількість (шт або кг).
 const cartToggle = (p) =>
-  `<button class="btn cart-toggle" data-cart="${p.id}" aria-pressed="${inCart(p.id)}">${BAG}${inCart(p.id) ? 'У списку покупок' : 'До списку покупок'}</button>`;
+  `<span class="cart-ctl" data-cart-ctl="${p.id}"><button class="btn cart-toggle" data-cart="${p.id}" aria-pressed="${inCart(p.id)}">${BAG}${inCart(p.id) ? 'У списку покупок' : 'До списку покупок'}</button>${
+    inCart(p.id)
+      ? `<span class="cart-row__qty"><button data-qty="${p.id}" data-d="-1" aria-label="Менше">−</button><span>${fmtQty(cart[p.id].q, cart[p.id].unit)}</span><button data-qty="${p.id}" data-d="1" aria-label="Більше">+</button></span>`
+      : ''
+  }</span>`;
 
 let cartFrom = '#/';
 function renderCart() {
@@ -839,7 +844,7 @@ function bindCart() {
       const p = state.byId.get(Number(t.dataset.cart));
       if (!p) return;
       toggleCart(p);
-      if (t.classList.contains('cart-toggle')) t.outerHTML = cartToggle(p);
+      if (t.classList.contains('cart-toggle')) t.closest('.cart-ctl').outerHTML = cartToggle(p);
       else {
         t.setAttribute('aria-pressed', inCart(p.id));
         t.setAttribute('aria-label', inCart(p.id) ? 'Прибрати зі списку покупок' : 'Додати до списку покупок');
@@ -851,6 +856,15 @@ function bindCart() {
       const step = qtyStep(c.unit);
       c.q = Math.round((c.q + step * Number(t.dataset.d)) * 100) / 100;
       if (c.q < step / 2) delete cart[t.dataset.qty];
+      // На сторінці товару — оновлюємо лише кнопку з кількістю, а не всю сторінку.
+      const ctl = t.closest('.cart-ctl');
+      if (ctl) {
+        e.preventDefault();
+        saveCart();
+        const p = state.byId.get(Number(t.dataset.qty));
+        if (p) ctl.outerHTML = cartToggle(p);
+        return;
+      }
     } else if (t.dataset.uncart) delete cart[t.dataset.uncart];
     else if (t.id === 'cartClearDone') {
       for (const [id, c] of Object.entries(cart)) if (c.done) delete cart[id];
