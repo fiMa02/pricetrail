@@ -369,6 +369,8 @@ async function loadData() {
     state.byId.set(p.id, p);
   }
   const products = state.all.filter((p) => chainOf(p) === state.chain);
+  // Картка АТБ є лише в АТБ: в інших мережах фільтра не показуємо (і він не діє).
+  $('#card').closest('label').hidden = state.chain !== 'atb';
   state.products = products;
   const m = (state.chain === 'silpo' && silpoMeta) || (state.chain === 'thrash' && thrashMeta) || meta;
   state.meta = m;
@@ -996,7 +998,7 @@ function filtered() {
       (!filters.group || (p.group || 'Інше') === filters.group) &&
       (!filters.cat || p.category === filters.cat) &&
       (!filters.sale || p.oldPrice) &&
-      (!filters.card || p.cardPrice) &&
+      (!filters.card || state.chain !== 'atb' || p.cardPrice) &&
       (!filters.inflated || inflation(p) > 0) &&
       (!filters.local || !p.from) &&
       words.every((w) => p._q.includes(w)),
@@ -1624,7 +1626,7 @@ function renderGroups() {
     filters.group && `${GROUPS.get(filters.group) || '📦'} ${filters.group}`,
     filters.cat,
     filters.sale && '% Акції',
-    filters.card && '💳 З карткою',
+    filters.card && state.chain === 'atb' && '💳 З карткою',
     filters.inflated && '⚠ Завищені',
     filters.local && '📍 Тільки у вибраному місті',
   ].filter(Boolean);

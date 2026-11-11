@@ -218,6 +218,7 @@ select {
   color: var(--accent); font-size: 14px; font-weight: 600; cursor: pointer;
 }
 .fpanel__reset[hidden] { display: none; }
+.chip-toggle[hidden] { display: none; }
 .fpanel__reset:hover { text-decoration: underline; }
 .pill {
   flex: 1 1 0; min-width: 0;
