@@ -1927,9 +1927,7 @@ async function renderProduct(id, slug) {
       <div class="chart" id="chart"><div class="sk" style="height:280px;border-radius:12px"></div></div>
       <div id="stats"></div>
     </section>
-    ${(state.chains.length > 1 || chainOf(p) === 'thrash') && !p._view ? '<section class="panel vs" id="vs"></section>' : ''}
-    ${state.thrash.length && chainOf(p) !== 'thrash' && !p._view ? '<section class="panel vs" id="thrashVs" hidden></section>' : ''}
-    ${chainOf(p) === 'thrash' && state.chains.includes('silpo') ? '<section class="panel vs" id="silpoVs" hidden></section>' : ''}
+    ${otherChains(p).length && !p._view ? '<section class="panel vs" id="vs"></section>' : ''}
     ${
       chainOf(p) === 'atb'
         ? `<section class="panel" id="compare">
@@ -1939,9 +1937,7 @@ async function renderProduct(id, slug) {
         : ''
     }`;
   bindFavTarget(p);
-  if ($('#vs')) renderVs($('#vs'), p);
-  if ($('#thrashVs')) renderThrashVs($('#thrashVs'), p);
-  if ($('#silpoVs')) renderThrashSilpo($('#silpoVs'), p);
+  if ($('#vs')) renderChainVs($('#vs'), p);
   if ($('#compare')) renderCompare($('#compare'), p);
   // Користувач побачив поточну ціну — знижка «з обраного» для цього товару вже не нова.
   if (!p._view && isFav(id) && favDrop(p, favs[id])) markSeen([id]);
@@ -1973,7 +1969,8 @@ async function renderProduct(id, slug) {
 
 // ---------- ТЕСТ: порівняння з товаром іншої мережі ----------
 // Схожі товари шукаємо за словами назви (перші 5 літер — щоб «моцарела» = «моцарелла», «курячий» = «куряче»),
-// брендом і вагою/об'ємом. Вибір користувача — pairs[id] = id товару іншої мережі (0 — «не порівнювати»), в обидва боки.
+// брендом і вагою/об'ємом. Вибір користувача — pairs['id>мережа'] = id товару тієї мережі (0 — «не порівнювати»),
+// в обидва боки. Старі записи pairs[id] (до вкладок мереж) — пара з мережею, з якою тоді порівнювали (vsOther).
 let pairs = {};
 try {
   pairs = JSON.parse(store.get('pairs') || '{}');
@@ -2066,17 +2063,19 @@ const loadChainCats = () =>
   (chainCats ||= fetch('data/chains/silpo/categories.json')
     .then((r) => (r.ok ? r.json() : null))
     .catch(() => null));
-async function renderVs(el, p) {
+async function renderVs(el, p, other, onChange) {
   const mine = chainOf(p);
-  const other = state.chains.find((c) => c !== mine);
+  // Вкладки перемикають швидше, ніж вантажиться відповідність підкатегорій: малюємо лише останній виклик.
+  const seq = (el._vsSeq = (el._vsSeq || 0) + 1);
   const cats = await loadChainCats();
+  if (seq !== el._vsSeq) return;
   const pool = state.all.filter((x) => chainOf(x) === other && !x.from);
   const ranked = pool
     .map((x) => [x, matchScore(p, x)])
     .filter(([, sc]) => sc >= MATCH_SHOW)
     .sort((a, b) => b[1] - a[1]);
-  const chosen = pairs[p.id];
-  const pick = chosen === 0 ? null : chosen ? state.byId.get(chosen) : ranked[0] && autoMatch(p, ranked[0][0], ranked[0][1]) ? ranked[0][0] : null;
+  const chosen = getPair(p, other);
+  const pick = peerOf(p, other);
   // Такого самого товару немає — схожі й пошук лише з відповідних підкатегорій іншої мережі
   // (якщо відповідність невідома чи там порожньо — з того самого розділу).
   let near = pool;
@@ -2127,8 +2126,7 @@ async function renderVs(el, p) {
         <span class="vs-side__price"><b class="${x.oldPrice ? 'price--sale' : ''}">${fmtPrice(x.price)} <small>₴/${esc(x.unit)}</small></b>${x.oldPrice ? ` <s>${fmtPrice(x.oldPrice)}</s>` : ''}</span>
         ${perHtml(x)}
       </a>`;
-    el.innerHTML = `<div class="panel__head"><h2>Порівняння з ${CHAINS[other]}</h2></div>
-      ${
+    el.innerHTML = `${
         pick
           ? `<div class="vs-pair">${side(p)}<span class="vs-pair__vs">vs</span>${side(pick)}</div>
              <p class="vs-verdict vs-verdict--${cheaper ? 'cheaper' : 'dearer'}">${verdict}</p>`
@@ -2141,16 +2139,13 @@ async function renderVs(el, p) {
         <div class="vs-list">${list.length ? list.map(([x]) => vsRow(x, pick?.id)).join('') : `<p class="note">${words.length ? 'Нічого не знайдено' : 'Схожих товарів немає'}</p>`}</div>
       </div>`;
   };
-  const setPair = (id) => {
-    const old = pairs[p.id];
-    if (old) delete pairs[old];
-    pairs[p.id] = id;
-    if (id) pairs[id] = p.id;
-    store.set('pairs', JSON.stringify(pairs));
-    renderVs(el, p);
+  const choose = (id) => {
+    setPair(p, other, id);
+    renderVs(el, p, other, onChange);
+    onChange?.();
   };
   paint();
-  el.addEventListener('input', (e) => {
+  el.oninput = (e) => {
     if (!e.target.matches('.vs-q')) return;
     q = e.target.value;
     const pos = e.target.selectionStart;
@@ -2158,11 +2153,44 @@ async function renderVs(el, p) {
     const input = el.querySelector('.vs-q');
     input.focus();
     input.setSelectionRange(pos, pos);
-  });
+  };
   el.onclick = (e) => {
     const row = e.target.closest('[data-pick]');
-    if (row) setPair(+row.dataset.pick);
-    else if (e.target.closest('.vs-none')) setPair(0);
+    if (row) choose(+row.dataset.pick);
+    else if (e.target.closest('.vs-none')) choose(0);
+  };
+}
+
+// Інші мережі, з якими можна порівняти товар у цьому місті («Траш!» — лише акції, якщо він тут є).
+const otherChains = (p) => ['atb', 'silpo', 'thrash'].filter((c) => c !== chainOf(p) && (c === 'thrash' ? state.thrash.length : state.chains.includes(c)));
+let vsTab = null; // остання відкрита вкладка — щоб на наступному товарі відкрилась та сама мережа
+// Порівняння з іншими мережами — один блок, мережа перемикається вкладками; на вкладці — різниця з тією мережею.
+function renderChainVs(el, p) {
+  const others = otherChains(p);
+  let tab = others.includes(vsTab) ? vsTab : others.find((c) => peerOf(p, c)) || others[0];
+  const tabLabel = (c) => {
+    const x = peerOf(p, c);
+    const d = x && vsDiff(p, x).d;
+    return `${CHAINS[c]}${x ? ` <small class="${d > 0 ? 'bad' : d < 0 ? 'good' : ''}">${d === 0 ? '=' : `${d > 0 ? '+' : '−'}${Math.abs(d)}%`}</small>` : ''}`;
+  };
+  const head = () =>
+    others.length > 1
+      ? `<div class="panel__head"><h2>Порівняння з іншими мережами</h2><div class="seg vs-tabs" role="tablist">${others
+          .map((c) => `<button type="button" role="tab" data-tab="${c}" aria-pressed="${c === tab}" aria-selected="${c === tab}">${tabLabel(c)}</button>`)
+          .join('')}</div></div>`
+      : `<div class="panel__head"><h2>Порівняння з ${CHAINS[tab]}</h2></div>`;
+  el.innerHTML = `<div class="vs-head">${head()}</div><div class="vs-body"></div>`;
+  const body = el.querySelector('.vs-body');
+  const refreshHead = () => {
+    el.querySelector('.vs-head').innerHTML = head();
+  };
+  renderVs(body, p, tab, refreshHead);
+  el.querySelector('.vs-head').onclick = (e) => {
+    const b = e.target.closest('[data-tab]');
+    if (!b || b.dataset.tab === tab) return;
+    tab = vsTab = b.dataset.tab;
+    refreshHead();
+    renderVs(body, p, tab, refreshHead);
   };
 }
 
@@ -2175,7 +2203,27 @@ const SILPO_ID_BASE = 10_000_000;
 // товару (pairs), беремо як є. Пари рахуємо раз на місто (state.all змінюється з містом) — плиток сотні.
 let peersFor = null;
 let peers = new Map();
-const vsOther = (p) => (chainOf(p) === 'atb' ? 'silpo' : 'atb'); // з якою мережею порівнює renderVs
+const vsOther = (p) => (chainOf(p) === 'atb' ? 'silpo' : 'atb'); // з якою мережею порівнювали до вкладок (старі pairs[id])
+const pairKey = (id, chain) => `${id}>${chain}`;
+function getPair(p, chain) {
+  const k = pairKey(p.id, chain);
+  if (k in pairs) return pairs[k];
+  if (p.id in pairs && chain === vsOther(p)) return pairs[p.id];
+  return undefined;
+}
+// Вибір користувача — в обидва боки; попередню пару (і її зворотний запис) прибираємо.
+function setPair(p, chain, id) {
+  const mine = chainOf(p);
+  const old = getPair(p, chain);
+  if (old) {
+    delete pairs[pairKey(old, mine)];
+    if (pairs[old] === p.id) delete pairs[old];
+  }
+  if (chain === vsOther(p)) delete pairs[p.id];
+  pairs[pairKey(p.id, chain)] = id;
+  if (id) pairs[pairKey(id, mine)] = p.id;
+  store.set('pairs', JSON.stringify(pairs));
+}
 function peerOf(p, chain) {
   const mine = chainOf(p);
   if (chain === mine) return null;
@@ -2183,9 +2231,11 @@ function peerOf(p, chain) {
     peersFor = state.all;
     peers = new Map();
   }
-  if (chain === vsOther(p) && p.id in pairs) {
-    const x = pairs[p.id] && state.byId.get(pairs[p.id]);
-    if (!pairs[p.id] || (x && chainOf(x) === chain)) return x || null;
+  const chosen = getPair(p, chain);
+  if (chosen === 0) return null;
+  if (chosen) {
+    const x = state.byId.get(chosen);
+    if (x && chainOf(x) === chain) return x;
   }
   const key = `${chain}/${p.id}`;
   if (peers.has(key)) return peers.get(key);
@@ -2203,7 +2253,6 @@ function peerOf(p, chain) {
   peers.set(key, best);
   return best;
 }
-const thrashMatch = (p) => peerOf(p, 'thrash');
 // На плитці — ціна такого самого товару в інших мережах міста і на скільки там дорожче (+, червоним)
 // чи дешевше (−, зеленим), ніж у цій.
 function vsTileHtml(p) {
@@ -2224,37 +2273,7 @@ function vsDiff(a, b) {
   const d = Math.round((m.b / m.a - 1) * 100);
   return { d, text: d === 0 ? `однаково ${m.what}` : `на ${Math.abs(d)}% ${d < 0 ? 'дешевше' : 'дорожче'} ${m.what}` };
 }
-const untilText = (t) => (t.until ? `до ${fmtDate(parseDate(t.until), false)}` : '');
 
-// Панель «товар vs такий самий товар іншої мережі» (без вибору пари — пару знайдено точно чи за назвою й фасовкою).
-function pairPanel(el, title, p, x, note) {
-  const v = vsDiff(p, x);
-  const side = (y) => `<a class="vs-side" href="#/p/${y.id}">
-      ${chainTag(y)}
-      <img src="${esc(y.img)}" alt="">
-      <span class="vs-side__name">${esc(y.name)}</span>
-      <span class="vs-side__price"><b class="${y.oldPrice ? 'price--sale' : ''}">${fmtPrice(y.price)} <small>₴/${esc(y.unit)}</small></b>${y.oldPrice ? ` <s>${fmtPrice(y.oldPrice)}</s>` : ''}</span>
-      ${perHtml(y)}
-    </a>`;
-  el.hidden = false;
-  el.innerHTML = `<div class="panel__head"><h2>${title}</h2></div>
-    <div class="vs-pair">${side(p)}<span class="vs-pair__vs">vs</span>${side(x)}</div>
-    <p class="vs-verdict vs-verdict--${v.d < 0 ? 'cheaper' : 'dearer'}">У ${CHAINS[chainOf(x)]} ${v.text}</p>
-    ${note ? `<p class="note">${note}</p>` : ''}`;
-}
-function renderThrashVs(el, p) {
-  const t = thrashMatch(p);
-  if (t) pairPanel(el, 'Акція в «Траш!»', p, t, `Акція ${untilText(t)}, у всіх магазинах «Траш!».`);
-}
-// Товар «Траш!» у Сільпо — той самий за кодом (артикул «Траш!» = код товару Сільпо).
-function renderThrashSilpo(el, t) {
-  const x = peerOf(t, 'silpo');
-  if (x) pairPanel(el, 'Порівняння з Сільпо', t, x, `Той самий товар: артикул «Траш!» збігається з кодом Сільпо. Ціна Сільпо — у місті ${esc(state.city.name)}.`);
-  else {
-    el.hidden = false;
-    el.innerHTML = `<div class="panel__head"><h2>Порівняння з Сільпо</h2></div><p class="note">У Сільпо в місті ${esc(state.city.name)} цього товару зараз немає.</p>`;
-  }
-}
 
 // ---------- Ціни в інших містах ----------
 // data/compare/NN.json: { id: { місто: ціна | [ціна, ціна_до_знижки] } } — будує scraper/compare.js.
