@@ -1010,7 +1010,8 @@ function card(p, from, extra = '') {
   let flags = lowTag(p);
   if (isInflated(p.oldPrice, p.regular)) {
     flags += `<span class="tag tag--warn" title="Перед акцією було ${fmtPrice(p.regular)} грн — ціну до знижки завищено">⚠ до акції ${fmtPrice(p.regular)}</span>`;
-  } else if (dishonest(p)) {
+  } else if (dishonest(p) && !p.min30Sale) {
+    // «Повторну акцію» на плитці не показуємо (лише на сторінці товару) — плитки нею переповнені.
     flags += honestTag(p);
   }
   if (from != null && Math.abs(p.price - from) > 0.004) {
