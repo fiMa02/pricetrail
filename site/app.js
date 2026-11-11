@@ -620,7 +620,8 @@ function bindFavTarget(p) {
 }
 
 // ---------- Список покупок ----------
-// cart[id] = { q: кількість (шт або кг), done: куплено, name, img, unit } — зберігається в браузері.
+// cart[id] = { q: кількість (шт або кг), done: куплено, name, img, unit, chain } — зберігається в браузері.
+// Список поділено за мережами: у кожної своя сума (купують у різних магазинах).
 // Ціни беремо поточні: у вибраному місті (state.byId) і в інших містах (data/compare).
 
 const BAG = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 8h14l-1.2 11.1a2 2 0 0 1-2 1.9H8.2a2 2 0 0 1-2-1.9L5 8Z"/><path d="M9 8V6.5a3 3 0 0 1 6 0V8"/></svg>';
@@ -640,14 +641,14 @@ function saveCart() {
 
 function toggleCart(p) {
   if (inCart(p.id)) delete cart[p.id];
-  else cart[p.id] = { q: qtyStep(p.unit) === 1 ? 1 : 0.5, done: false, name: p.name, img: p.img, unit: p.unit };
+  else cart[p.id] = { q: qtyStep(p.unit) === 1 ? 1 : 0.5, done: false, name: p.name, img: p.img, unit: p.unit, chain: chainOf(p) };
   saveCart();
 }
 
 function syncCart() {
   for (const [id, c] of Object.entries(cart)) {
     const p = state.byId.get(+id);
-    if (p) Object.assign(c, { name: p.name, img: p.img, unit: p.unit });
+    if (p) Object.assign(c, { name: p.name, img: p.img, unit: p.unit, chain: chainOf(p) });
   }
   saveCart();
 }
@@ -679,10 +680,16 @@ function renderCart() {
     .map((id) => ({ id, c: cart[id], p: state.byId.get(id) }))
     .sort((a, b) => a.c.done - b.c.done || a.c.name.localeCompare(b.c.name, 'uk'));
   const priced = items.filter((x) => x.p);
-  const total = priced.reduce((s, x) => s + x.p.price * x.c.q, 0);
-  const left = priced.filter((x) => !x.c.done).reduce((s, x) => s + x.p.price * x.c.q, 0);
+  const sum = (list) => list.reduce((s, x) => s + x.p.price * x.c.q, 0);
+  const total = sum(priced);
+  const left = sum(priced.filter((x) => !x.c.done));
   const elsewhere = priced.filter((x) => x.p.from).length;
   const missing = items.length - priced.length;
+  // Мережа — із запису (старі записи без неї — за діапазоном id: Сільпо від 10 млн, «Траш!» від 20 млн).
+  const chainId = ({ id, c }) => c.chain || (id >= THRASH_ID_BASE ? 'thrash' : id >= SILPO_ID_BASE ? 'silpo' : 'atb');
+  const byChain = Object.keys(CHAINS)
+    .map((chain) => [chain, items.filter((x) => chainId(x) === chain)])
+    .filter(([, list]) => list.length);
   const row = ({ id, c, p }) => `<div class="cart-row${c.done ? ' is-done' : ''}">
       <label class="cart-row__check" title="${c.done ? 'Повернути в список' : 'Позначити купленим'}"><input type="checkbox" data-done="${id}"${c.done ? ' checked' : ''}><span aria-hidden="true"></span></label>
       <img src="${esc(c.img)}" alt="" loading="lazy">
@@ -690,8 +697,10 @@ function renderCart() {
         <a href="#/p/${id}" class="cart-row__name">${esc(c.name)}</a>
         <span class="note">${
           p
-            ? `${fmtPrice(p.price)} грн/${esc(p.unit)}${p.oldPrice ? ' · акція' : ''}${p.from ? ` · ціна з міста ${esc(cityName(p.from))}` : ''}`
-            : 'немає в каталозі'
+            ? `${fmtPrice(p.price)} грн/${esc(p.unit)}${p.oldPrice ? ' · акція' : ''}${p.until ? ` до ${fmtDate(parseDate(p.until), false)}` : ''}${p.from ? ` · ціна з міста ${esc(cityName(p.from))}` : ''}`
+            : chainId({ id, c }) === 'thrash'
+              ? 'акція закінчилась або в місті немає «Траш!»'
+              : 'немає в каталозі'
         }</span>
       </div>
       <div class="cart-row__qty">
@@ -705,9 +714,24 @@ function renderCart() {
     missing && `${missing} ${plural(missing, 'товару', 'товарів', 'товарів')} немає в каталозі — не враховано`,
   ].filter(Boolean);
   html += `<div class="panel cart">
-      <div class="cart-rows">${items.map(row).join('')}</div>
+      ${byChain
+        .map(([chain, list]) => {
+          const got = list.filter((x) => x.p);
+          const rest = sum(got.filter((x) => !x.c.done));
+          return `<div class="cart-chain">
+            ${
+              byChain.length > 1
+                ? `<div class="cart-chain__head"><span class="chain chain--${chain}">${CHAINS[chain]}</span>
+                    <span class="note">${list.length} ${plural(list.length, 'товар', 'товари', 'товарів')}${got.length && !rest ? ' · усе куплено' : rest !== sum(got) ? ` · ще купити ${fmtPrice(rest)} грн` : ''}</span>
+                    <b>${fmtPrice(sum(got))} грн</b></div>`
+                : ''
+            }
+            <div class="cart-rows">${list.map(row).join('')}</div>
+          </div>`;
+        })
+        .join('')}
       <div class="cart-total">
-        <span>Разом у місті ${esc(state.city.name)}</span><b>${fmtPrice(total)} грн</b>
+        <span>Разом у місті ${esc(state.city.name)}${byChain.length > 1 ? ` (${byChain.map(([c]) => CHAINS[c]).join(', ')})` : ''}</span><b>${fmtPrice(total)} грн</b>
         ${left !== total ? `<span class="note">Ще купити: ${fmtPrice(left)} грн</span>` : ''}
       </div>
       ${notes.length ? `<p class="note">${notes.join('; ')}.</p>` : ''}
@@ -716,17 +740,19 @@ function renderCart() {
         <button id="cartClear">Очистити список</button>
       </div>
     </div>
-    <section class="panel" id="cartCompare"><div class="panel__head"><h2>Цей список в інших містах</h2></div><div class="sk" style="height:120px;border-radius:12px"></div></section>`;
+    ${byChain.some(([c]) => c === 'atb') ? `<section class="panel" id="cartCompare"><div class="panel__head"><h2>${byChain.length > 1 ? 'Товари АТБ' : 'Цей список'} в інших містах</h2></div><div class="sk" style="height:120px;border-radius:12px"></div></section>` : ''}`;
   // Зміна кількості перемальовує сторінку — лишаємось на тому самому місці.
   const y = scrollY;
   app.innerHTML = html;
   scrollTo(0, y);
-  renderCartCompare($('#cartCompare'), priced);
+  // Ціни в інших містах є лише для АТБ.
+  if ($('#cartCompare')) renderCartCompare($('#cartCompare'), priced.filter((x) => chainId(x) === 'atb'));
 }
 
 // Список в інших містах (data/compare): кожне місто порівнюємо з вибраним за товарами, що є в обох;
 // скільки товарів у місті бракує — пишемо поруч. Сума — за тими товарами, що там є.
 async function renderCartCompare(el, priced) {
+  const title = el.querySelector('h2').textContent;
   const prices = await Promise.all(priced.map((x) => loadCompare(x.id)));
   if (!el.isConnected) return;
   const one = (v) => (Array.isArray(v) ? v[0] : v);
@@ -753,7 +779,7 @@ async function renderCartCompare(el, priced) {
     .filter((r) => r.d != null)
     .sort((a, b) => a.d - b.d || a.lack - b.lack);
   if (!rows.length) {
-    el.innerHTML = '<div class="panel__head"><h2>Цей список в інших містах</h2></div><p class="note">Порівняти немає з чим: товарів зі списку немає в інших містах або у вибраному.</p>';
+    el.innerHTML = `<div class="panel__head"><h2>${esc(title)}</h2></div><p class="note">Порівняти немає з чим: товарів зі списку немає в інших містах або у вибраному.</p>`;
     return;
   }
   const lo = rows[0].d;
@@ -779,7 +805,7 @@ async function renderCartCompare(el, priced) {
       : `У місті ${esc(state.city.name)} цей список не дорожчий, ніж деінде.`;
   // Перші 8 — найдешевші; решта згорнута.
   const TOP = 8;
-  el.innerHTML = `<div class="panel__head"><h2>Цей список в інших містах</h2></div>
+  el.innerHTML = `<div class="panel__head"><h2>${esc(title)}</h2></div>
     <p class="compare__summary">${summary}</p>
     ${
       same
