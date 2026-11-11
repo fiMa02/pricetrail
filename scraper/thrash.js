@@ -84,6 +84,59 @@ for (const page of PAGES) {
 }
 if (!products.size) throw new Error('Жодної акції «Траш!» не отримано');
 
+// Товару немає в жодному зібраному магазині Сільпо (не в наявності чи лише в «Траш!») — розділ і підкатегорію
+// визначаємо за назвою: серед товарів Сільпо з тим самим першим словом (тип товару: «Сир», «Чіпси», «Балик»)
+// беремо 10 найсхожіших (слова за першими 5 літерами, вага слова — його рідкісність) і голосуємо за підкатегорію.
+// Перше слово важливе: без нього «Сир Молочна Гільдія» тягне до сосисок «М'ясна Гільдія».
+const STOP = new Set('з зи из та и й в у на для без по тм гат шт вагов фасов премиу тетра пляшк стака пакет банка фольг флако фильт мрц тек стери пасте ультр натур упако скло пет об ск бут кор'.split(' '));
+const words = (name) => [
+  ...new Set(
+    name
+      .toLowerCase()
+      .replace(/[’'`ʼ]/g, '')
+      // «Чіпси» в «Траш!» — «Чипси» в Сільпо; латинська «i» в «Горiлка».
+      .replace(/[іi]/g, 'и')
+      .replace(/[«»"“”()®™,.!+*]/g, ' ')
+      .split(/\s+/)
+      .filter((w) => w.length > 1 && !/\d/.test(w) && !w.includes('/'))
+      .map((w) => w.slice(0, 5))
+      .filter((w) => !STOP.has(w)),
+  ),
+];
+const pool = [...silpo.values()].filter((p) => p.group && p.category).map((p) => ({ p, list: words(p.name) }));
+const df = new Map();
+for (const q of pool) for (const x of q.list) df.set(x, (df.get(x) || 0) + 1);
+const idf2 = (x) => Math.log((pool.length + 1) / (df.get(x) || 1)) ** 2;
+const norm = (list) => Math.sqrt(list.reduce((s, x) => s + idf2(x), 0)) || 1;
+for (const q of pool) {
+  q.w = new Set(q.list);
+  q.n = norm(q.list);
+}
+let guessed = 0;
+for (const t of products.values()) {
+  if (t.group) continue;
+  const list = words(t.name);
+  const n = norm(list);
+  const same = pool.filter((q) => q.list[0] === list[0]);
+  const byType = same.length >= 3;
+  const scored = (byType ? same : pool)
+    .map((q) => [q.p, list.reduce((c, x) => c + (q.w.has(x) ? idf2(x) : 0), 0) / (n * q.n)])
+    // Менш схожі — краще «Інше», ніж чужий розділ; коли тип товару той самий, досить і слабшої схожості.
+    .filter(([, sc]) => sc >= (byType ? 0.05 : 0.2))
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 10);
+  const votes = new Map();
+  for (const [p, sc] of scored) {
+    const k = `${p.group}\t${p.category}`;
+    votes.set(k, (votes.get(k) || 0) + sc ** 3); // найсхожіші важать більше, ніж просто численні
+  }
+  const win = [...votes].sort((a, b) => b[1] - a[1])[0];
+  if (win) {
+    [t.group, t.category] = win[0].split('\t');
+    guessed++;
+  }
+}
+
 const historyDir = path.join(DIR, 'history');
 await fs.mkdir(historyDir, { recursive: true });
 const shards = [];
@@ -114,4 +167,4 @@ const names = new Set(cities.map((c) => key(c.title.replace(/^(м|смт|сел|
 const ours = CITIES.filter((c) => names.has(key(c.name))).map((c) => ({ slug: c.slug }));
 await fs.writeFile(path.join(DIR, 'cities.json'), JSON.stringify(ours));
 const known = list.filter((p) => p.group).length;
-console.log(`Траш!: ${list.length} акційних товарів (з розділом із каталогу Сільпо: ${known}), змін цін: ${changed}, наших міст: ${ours.length}`);
+console.log(`Траш!: ${list.length} акційних товарів (з розділом: ${known}, з них за схожою назвою: ${guessed}), змін цін: ${changed}, наших міст: ${ours.length}`);
