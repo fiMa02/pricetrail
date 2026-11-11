@@ -235,7 +235,6 @@ select {
 .chip-toggle input:checked + span { background: var(--sale); border-color: var(--sale); color: #fff; }
 .chip-toggle--card input:checked + span { background: var(--good); border-color: var(--good); }
 .chip-toggle--warn input:checked + span { background: var(--warn); border-color: var(--warn); }
-.chip-toggle--low input:checked + span { background: var(--good); border-color: var(--good); }
 .chip-toggle input:focus-visible + span { outline: 2px solid var(--accent); outline-offset: 2px; }
 .top.is-product .filters { display: none; }
 @media (max-width: 520px) {

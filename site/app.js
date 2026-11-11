@@ -896,15 +896,16 @@ function bindCart() {
 
 // ---------- Фільтри ----------
 
-const filters = { q: '', group: '', cat: '', sort: 'name', sale: false, card: false, inflated: false, local: false, low: false };
+const filters = { q: '', group: '', cat: '', sort: 'name', sale: false, card: false, inflated: false, local: false };
 try {
   Object.assign(filters, JSON.parse(sessionStorage.getItem('filters') || '{}'));
 } catch {}
 // Параметри з адреси (?q=молоко&sale=1&inflated=1) мають пріоритет — щоб можна було ділитися посиланнями.
 for (const [k, v] of new URLSearchParams(location.search)) {
-  if (k === 'sale' || k === 'card' || k === 'inflated' || k === 'local' || k === 'low') filters[k] = v === '1';
+  if (k === 'sale' || k === 'card' || k === 'inflated' || k === 'local') filters[k] = v === '1';
   else if (k in filters) filters[k] = v;
 }
+delete filters.low; // прибраний фільтр «★ Найнижча ціна» (міг лишитися в sessionStorage)
 if (filters.sort === 'per-asc') filters.sort = 'per-kg'; // колишнє «Дешевші за кг/л»
 // Колишні сортування «Спершу завищені/реальні акції»: завищені тепер — фільтр.
 if (filters.sort === 'inflated') filters.inflated = true;
@@ -933,7 +934,6 @@ function bindFilters() {
   $('#card').checked = filters.card;
   $('#inflated').checked = filters.inflated;
   $('#local').checked = filters.local;
-  $('#low').checked = filters.low;
   let t;
   const update = () => {
     filters.q = $('#q').value;
@@ -943,7 +943,6 @@ function bindFilters() {
     filters.card = $('#card').checked;
     filters.inflated = $('#inflated').checked;
     filters.local = $('#local').checked;
-    filters.low = $('#low').checked;
     applyFilters();
   };
   // Серце на картці (вона — посилання, тож не даємо перейти) і кнопка на сторінці товару.
@@ -977,7 +976,7 @@ function bindFilters() {
     clearTimeout(t);
     t = setTimeout(update, 150);
   });
-  for (const id of ['#cat', '#sort', '#sale', '#card', '#inflated', '#local', '#low']) $(id).addEventListener('change', update);
+  for (const id of ['#cat', '#sort', '#sale', '#card', '#inflated', '#local']) $(id).addEventListener('change', update);
 }
 
 // Ціна за 1 кг / л / шт (вагові товари — за їхньою ціною); null, якщо для цієї одиниці невідома.
@@ -1000,7 +999,6 @@ function filtered() {
       (!filters.card || p.cardPrice) &&
       (!filters.inflated || inflation(p) > 0) &&
       (!filters.local || !p.from) &&
-      (!filters.low || lowDays(p) >= LOW_MIN_DAYS) &&
       words.every((w) => p._q.includes(w)),
   );
   const sorters = {
@@ -1629,7 +1627,6 @@ function renderGroups() {
     filters.card && '💳 З карткою',
     filters.inflated && '⚠ Завищені',
     filters.local && '📍 Тільки у вибраному місті',
-    filters.low && '★ Найнижча ціна',
   ].filter(Boolean);
   $('#fActive').innerHTML = active.map((a) => `<span>${esc(a)}</span>`).join('');
   $('#fReset').hidden = !active.length;
@@ -1688,8 +1685,8 @@ function initFilterPanel() {
     applyFilters();
   });
   $('#fReset').onclick = () => {
-    Object.assign(filters, { group: '', cat: '', sale: false, card: false, inflated: false, local: false, low: false });
-    for (const id of ['#sale', '#card', '#inflated', '#local', '#low']) $(id).checked = false;
+    Object.assign(filters, { group: '', cat: '', sale: false, card: false, inflated: false, local: false });
+    for (const id of ['#sale', '#card', '#inflated', '#local']) $(id).checked = false;
     fillCategories();
     applyFilters();
   };
