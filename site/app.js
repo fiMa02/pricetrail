@@ -1522,14 +1522,16 @@ function renderHome() {
             .map((p) => card(p))
             .join('')}</div></section>`
       : '';
+  // Мапа рівня цін — для мереж з повним каталогом; у «Траш!» лише акції, тож мапи немає.
+  const map = state.chain === 'thrash' ? '' : '<section class="panel home-map" id="homeMap"><div class="sk" style="height:320px;border-radius:12px"></div></section>';
   if (!tabs.length) {
-    app.innerHTML = `<section class="panel home-map" id="homeMap"><div class="sk" style="height:320px;border-radius:12px"></div></section>
+    app.innerHTML = `${map}
       ${offers || `<div class="empty"><b>😌</b>${d ? 'Сьогодні ціни не змінилися' : 'Змін поки немає'}<br><span class="note">Знайдіть товар через пошук угорі</span></div>${all}`}`;
-    renderHomeMap($('#homeMap'));
+    if (map) renderHomeMap($('#homeMap'));
     return;
   }
   const stale = d.date !== state.meta.updated ? ` (останній збір у цьому місті — ${fmtDate(parseDate(state.meta.updated))})` : '';
-  app.innerHTML = `<section class="panel home-map" id="homeMap"><div class="sk" style="height:320px;border-radius:12px"></div></section>
+  app.innerHTML = `${map}
     <div class="home-head"><div><h1 class="page-title">Що змінилося ${fmtDate(parseDate(d.date), false)}</h1>
       <p class="note today-sub">${esc(state.city.name)}: зміни порівняно з попереднім днем${stale}.</p></div>${all}</div>
     ${tabs
@@ -1540,7 +1542,7 @@ function renderHome() {
         </section>`,
       )
       .join('')}${offers}`;
-  renderHomeMap($('#homeMap'));
+  if (map) renderHomeMap($('#homeMap'));
 }
 
 function renderToday(tab) {
