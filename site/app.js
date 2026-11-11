@@ -1872,6 +1872,7 @@ async function renderProduct(id, slug) {
     </section>
     ${(state.chains.length > 1 || chainOf(p) === 'thrash') && !p._view ? '<section class="panel vs" id="vs"></section>' : ''}
     ${state.thrash.length && chainOf(p) !== 'thrash' && !p._view ? '<section class="panel vs" id="thrashVs" hidden></section>' : ''}
+    ${chainOf(p) === 'thrash' && state.chains.includes('silpo') ? '<section class="panel vs" id="silpoVs" hidden></section>' : ''}
     ${
       chainOf(p) === 'atb'
         ? `<section class="panel" id="compare">
@@ -1883,6 +1884,7 @@ async function renderProduct(id, slug) {
   bindFavTarget(p);
   if ($('#vs')) renderVs($('#vs'), p);
   if ($('#thrashVs')) renderThrashVs($('#thrashVs'), p);
+  if ($('#silpoVs')) renderThrashSilpo($('#silpoVs'), p);
   if ($('#compare')) renderCompare($('#compare'), p);
   // Користувач побачив поточну ціну — знижка «з обраного» для цього товару вже не нова.
   if (!p._view && isFav(id) && favDrop(p, favs[id])) markSeen([id]);
@@ -2165,22 +2167,34 @@ function vsDiff(a, b) {
 }
 const untilText = (t) => (t.until ? `до ${fmtDate(parseDate(t.until), false)}` : '');
 
-function renderThrashVs(el, p) {
-  const t = thrashMatch(p);
-  if (!t) return;
-  const v = vsDiff(p, t);
-  const side = (x) => `<a class="vs-side" href="#/p/${x.id}">
-      ${chainTag(x)}
-      <img src="${esc(x.img)}" alt="">
-      <span class="vs-side__name">${esc(x.name)}</span>
-      <span class="vs-side__price"><b class="${x.oldPrice ? 'price--sale' : ''}">${fmtPrice(x.price)} <small>₴/${esc(x.unit)}</small></b>${x.oldPrice ? ` <s>${fmtPrice(x.oldPrice)}</s>` : ''}</span>
-      ${perHtml(x)}
+// Панель «товар vs такий самий товар іншої мережі» (без вибору пари — пару знайдено точно чи за назвою й фасовкою).
+function pairPanel(el, title, p, x, note) {
+  const v = vsDiff(p, x);
+  const side = (y) => `<a class="vs-side" href="#/p/${y.id}">
+      ${chainTag(y)}
+      <img src="${esc(y.img)}" alt="">
+      <span class="vs-side__name">${esc(y.name)}</span>
+      <span class="vs-side__price"><b class="${y.oldPrice ? 'price--sale' : ''}">${fmtPrice(y.price)} <small>₴/${esc(y.unit)}</small></b>${y.oldPrice ? ` <s>${fmtPrice(y.oldPrice)}</s>` : ''}</span>
+      ${perHtml(y)}
     </a>`;
   el.hidden = false;
-  el.innerHTML = `<div class="panel__head"><h2>Акція в «Траш!»</h2></div>
-    <div class="vs-pair">${side(p)}<span class="vs-pair__vs">vs</span>${side(t)}</div>
-    <p class="vs-verdict vs-verdict--${v.d < 0 ? 'cheaper' : 'dearer'}">У «Траш!» ${v.text}</p>
-    <p class="note">Акція ${untilText(t)}, у всіх магазинах «Траш!».</p>`;
+  el.innerHTML = `<div class="panel__head"><h2>${title}</h2></div>
+    <div class="vs-pair">${side(p)}<span class="vs-pair__vs">vs</span>${side(x)}</div>
+    <p class="vs-verdict vs-verdict--${v.d < 0 ? 'cheaper' : 'dearer'}">У ${CHAINS[chainOf(x)]} ${v.text}</p>
+    ${note ? `<p class="note">${note}</p>` : ''}`;
+}
+function renderThrashVs(el, p) {
+  const t = thrashMatch(p);
+  if (t) pairPanel(el, 'Акція в «Траш!»', p, t, `Акція ${untilText(t)}, у всіх магазинах «Траш!».`);
+}
+// Товар «Траш!» у Сільпо — той самий за кодом (артикул «Траш!» = код товару Сільпо).
+function renderThrashSilpo(el, t) {
+  const x = thrashPeer(t, 'silpo');
+  if (x) pairPanel(el, 'Порівняння з Сільпо', t, x, `Той самий товар: артикул «Траш!» збігається з кодом Сільпо. Ціна Сільпо — у місті ${esc(state.city.name)}.`);
+  else {
+    el.hidden = false;
+    el.innerHTML = `<div class="panel__head"><h2>Порівняння з Сільпо</h2></div><p class="note">У Сільпо в місті ${esc(state.city.name)} цього товару зараз немає.</p>`;
+  }
 }
 
 // ---------- Ціни в інших містах ----------
