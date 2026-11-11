@@ -800,3 +800,11 @@ th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--lin
 .vs-tabs button small { margin-left: 4px; font-weight: 700; font-variant-numeric: tabular-nums; }
 .vs-tabs .good { color: var(--good); }
 .vs-tabs .bad { color: var(--sale); }
+.vs-toggle { display: inline-flex; align-items: center; gap: 8px; padding: 0; border: 0; background: none; color: inherit; font: inherit; cursor: pointer; text-align: left; }
+.vs-toggle h2 { margin: 0; }
+.vs-toggle h2 small { font-size: 0.8em; font-weight: 700; margin-left: 2px; }
+.vs-toggle h2 .good { color: var(--good); }
+.vs-toggle h2 .bad { color: var(--sale); }
+.vs-chev { width: 20px; height: 20px; flex: none; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; color: var(--muted); transition: transform .2s; }
+.vs-toggle[aria-expanded=true] .vs-chev { transform: rotate(180deg); }
+.vs.is-collapsed .panel__head { margin-bottom: 0; }

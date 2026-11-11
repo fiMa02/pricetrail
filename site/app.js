@@ -2165,32 +2165,51 @@ async function renderVs(el, p, other, onChange) {
 const otherChains = (p) => ['atb', 'silpo', 'thrash'].filter((c) => c !== chainOf(p) && (c === 'thrash' ? state.thrash.length : state.chains.includes(c)));
 let vsTab = null; // остання відкрита вкладка — щоб на наступному товарі відкрилась та сама мережа
 // Порівняння з іншими мережами — один блок, мережа перемикається вкладками; на вкладці — різниця з тією мережею.
+// Згорнуто за замовчуванням (на вкладках і так видно різницю); розгорнутий стан запам'ятовуємо.
+const CHEVRON = '<svg class="vs-chev" viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>';
 function renderChainVs(el, p) {
   const others = otherChains(p);
   let tab = others.includes(vsTab) ? vsTab : others.find((c) => peerOf(p, c)) || others[0];
+  let open = store.get('vsOpen') === '1';
   const tabLabel = (c) => {
     const x = peerOf(p, c);
     const d = x && vsDiff(p, x).d;
     return `${CHAINS[c]}${x ? ` <small class="${d > 0 ? 'bad' : d < 0 ? 'good' : ''}">${d === 0 ? '=' : `${d > 0 ? '+' : '−'}${Math.abs(d)}%`}</small>` : ''}`;
   };
-  const head = () =>
-    others.length > 1
-      ? `<div class="panel__head"><h2>Порівняння з іншими мережами</h2><div class="seg vs-tabs" role="tablist">${others
-          .map((c) => `<button type="button" role="tab" data-tab="${c}" aria-pressed="${c === tab}" aria-selected="${c === tab}">${tabLabel(c)}</button>`)
-          .join('')}</div></div>`
-      : `<div class="panel__head"><h2>Порівняння з ${CHAINS[tab]}</h2></div>`;
-  el.innerHTML = `<div class="vs-head">${head()}</div><div class="vs-body"></div>`;
+  const head = () => `<div class="panel__head">
+      <button type="button" class="vs-toggle" aria-expanded="${open}"><h2>${others.length > 1 ? 'Порівняння з іншими мережами' : `Порівняння з ${tabLabel(tab)}`}</h2>${CHEVRON}</button>
+      ${
+        others.length > 1
+          ? `<div class="seg vs-tabs" role="tablist">${others
+              .map((c) => `<button type="button" role="tab" data-tab="${c}" aria-pressed="${open && c === tab}" aria-selected="${open && c === tab}">${tabLabel(c)}</button>`)
+              .join('')}</div>`
+          : ''
+      }
+    </div>`;
+  el.innerHTML = `<div class="vs-head">${head()}</div><div class="vs-body"${open ? '' : ' hidden'}></div>`;
+  el.classList.toggle('is-collapsed', !open);
   const body = el.querySelector('.vs-body');
   const refreshHead = () => {
     el.querySelector('.vs-head').innerHTML = head();
   };
-  renderVs(body, p, tab, refreshHead);
+  const show = () => {
+    body.hidden = !open;
+    el.classList.toggle('is-collapsed', !open);
+    refreshHead();
+    if (open) renderVs(body, p, tab, refreshHead);
+  };
+  if (open) renderVs(body, p, tab, refreshHead);
   el.querySelector('.vs-head').onclick = (e) => {
     const b = e.target.closest('[data-tab]');
-    if (!b || b.dataset.tab === tab) return;
-    tab = vsTab = b.dataset.tab;
-    refreshHead();
-    renderVs(body, p, tab, refreshHead);
+    if (b) {
+      // Вкладка на згорнутому блоці — розгортаємо його одразу на ній.
+      if (b.dataset.tab === tab && open) return;
+      tab = vsTab = b.dataset.tab;
+      open = true;
+    } else if (e.target.closest('.vs-toggle')) open = !open;
+    else return;
+    store.set('vsOpen', open ? '1' : '0');
+    show();
   };
 }
 
