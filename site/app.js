@@ -119,6 +119,8 @@ function perUnit(p) {
 }
 // Ціна за кг / л / шт — лише якщо її ввімкнено в налаштуваннях (типово вимкнено).
 const showPer = () => store.get('per') === '1';
+// Порівняння з іншими мережами на плитках — теж лише якщо ввімкнено (типово вимкнено).
+const showTileVs = () => store.get('tileVs') === '1';
 const perHtml = (p, cls = 'per') => (p._per && showPer() ? `<span class="${cls}">${fmtPrice(p._per.price)} ₴/${p._per.unit}</span>` : '');
 
 // ---------- Дані ----------
@@ -273,12 +275,17 @@ function renderSettings() {
         <div><b>Ціна за кг / л / шт</b><span class="note">На плитках і сторінці товару, а також сортування «Дешевші за 1 кг / л / шт».</span></div>
         ${seg('per', { off: ['Не показувати'], on: ['Показувати'] }, showPer() ? 'on' : 'off')}
       </div>
+      <div class="settings-row">
+        <div><b>Порівняння на плитках</b><span class="note">Ціна такого самого товару в інших мережах міста під кожною плиткою.</span></div>
+        ${seg('tileVs', { off: ['Не показувати'], on: ['Показувати'] }, showTileVs() ? 'on' : 'off')}
+      </div>
     </section>
     <p class="note settings-note">Налаштування зберігаються лише в цьому браузері.</p>`;
   app.querySelector('.settings').onclick = (e) => {
     const b = e.target.closest('[data-set]');
     if (!b) return;
     if (b.dataset.set === 'theme') setTheme(b.dataset.v);
+    if (b.dataset.set === 'tileVs') store.set('tileVs', b.dataset.v === 'on' ? '1' : '0');
     if (b.dataset.set === 'per') {
       store.set('per', b.dataset.v === 'on' ? '1' : '0');
       applyPerSetting();
@@ -1062,7 +1069,8 @@ const CARD_ICON = '<svg class="atbcard__icon" viewBox="0 0 24 24" aria-hidden="t
 // extra — додаткова позначка (HTML) на початку рядка позначок.
 function card(p, from, extra = '') {
   const sale = p.oldPrice ? `<span class="badge">−${Math.round(discount(p) * 100)}%</span>` : '';
-  let flags = lowTag(p);
+  // «★ найнижча за N дн.» на плитці не показуємо (лише на сторінці товару) — плитки нею переповнені.
+  let flags = '';
   if (isInflated(p.oldPrice, p.regular)) {
     flags += `<span class="tag tag--warn" title="Перед акцією було ${fmtPrice(p.regular)} грн — ціну до знижки завищено">⚠ до акції ${fmtPrice(p.regular)}</span>`;
   } else if (dishonest(p) && !p.min30Sale) {
@@ -1093,7 +1101,7 @@ function card(p, from, extra = '') {
       </div>
       ${p.cardPrice ? `<div class="atbcard" title="Ціна при оплаті карткою АТБ">${CARD_ICON}<b>${fmtPrice(p.cardPrice)}</b> з карткою</div>` : ''}
       <div class="card__flags">${extra}${flags}</div>
-      ${p._view || p.from ? '' : vsTileHtml(p)}
+      ${p._view || p.from || !showTileVs() ? '' : vsTileHtml(p)}
     </div>
   </a>`;
 }
