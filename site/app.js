@@ -1037,8 +1037,8 @@ function card(p, from, extra = '') {
         ${perHtml(p)}
       </div>
       ${p.cardPrice ? `<div class="atbcard" title="Ціна при оплаті карткою АТБ">${CARD_ICON}<b>${fmtPrice(p.cardPrice)}</b> з карткою</div>` : ''}
-      ${p._view || p.from ? '' : vsTileHtml(p)}
       <div class="card__flags">${extra}${flags}</div>
+      ${p._view || p.from ? '' : vsTileHtml(p)}
     </div>
   </a>`;
 }
