@@ -2147,16 +2147,17 @@ function thrashPeer(t, chain) {
   peers.set(key, best);
   return best;
 }
-// На плитці акції «Траш!» — ціна такого самого товару в АТБ і Сільпо та на скільки в «Траш!» дешевше чи дорожче.
+// На плитці акції «Траш!» — ціна такого самого товару в АТБ і Сільпо та на скільки там дорожче чи дешевше.
 function thrashVsHtml(t) {
   const lines = ['atb', ...(state.chains.includes('silpo') ? ['silpo'] : [])]
     .map((chain) => [chain, thrashPeer(t, chain)])
     .filter(([, x]) => x)
     .map(([chain, x]) => {
-      const { d } = vsDiff(x, t);
-      return `<span class="card__vs-row"><span>${CHAINS[chain]} ${fmtPrice(x.price)}</span><b class="${d < 0 ? 'good' : d > 0 ? 'bad' : ''}">${d === 0 ? '=' : `${d > 0 ? '+' : '−'}${Math.abs(d)}%`}</b></span>`;
+      // Відсоток — на скільки в іншій мережі дорожче (+, червоним) чи дешевше (−, зеленим), ніж у «Траш!».
+      const { d } = vsDiff(t, x);
+      return `<span class="card__vs-row"><span>${CHAINS[chain]} ${fmtPrice(x.price)}</span><b class="${d > 0 ? 'bad' : d < 0 ? 'good' : ''}">${d === 0 ? '=' : `${d > 0 ? '+' : '−'}${Math.abs(d)}%`}</b></span>`;
     });
-  return lines.length ? `<div class="card__vs" title="Ціна такого самого товару в цьому місті; відсоток — на скільки в «Траш!» дешевше (−) чи дорожче (+)">${lines.join('')}</div>` : '';
+  return lines.length ? `<div class="card__vs" title="Ціна такого самого товару в цьому місті; відсоток — на скільки там дорожче (+) чи дешевше (−), ніж у «Траш!»">${lines.join('')}</div>` : '';
 }
 // На скільки товар b дешевший чи дорожчий за a: за одиницю (шт чи кг), а як одиниці різні — за 1 кг/л.
 function vsDiff(a, b) {
