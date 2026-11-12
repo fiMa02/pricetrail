@@ -1,5 +1,9 @@
 ﻿# Щоденний збір цін з цього комп'ютера і публікація на GitHub.
-# Запускається Планувальником завдань Windows (див. scripts\install-task.ps1).
+# Запускається Планувальником завдань Windows (див. scripts\install-task.ps1) двічі на ніч:
+#   -Part early (03:00) — друга половина міст АТБ;
+#   -Part late  (05:30) — перша половина міст АТБ + Сільпо, «Траш!» і недільні знімки.
+#   Без -Part — усе за один запуск.
+param([ValidateSet('all', 'early', 'late')][string]$Part = 'all')
 $ErrorActionPreference = 'Stop'
 # Node пише в UTF-8; без цього PowerShell 5.1 читає його вивід як OEM-кодування й псує кирилицю.
 [Console]::OutputEncoding = [Text.Encoding]::UTF8
@@ -25,6 +29,14 @@ $scrapeOut = @()
 $snapNote = ''
 $silpoNote = ''
 $silpoProc = $null
+$thrashNote = ''
+$full = $Part -ne 'early' # Сільпо, «Траш!» і недільні знімки — лише в пізньому (або повному) запуску
+$scrapeArgs = @{ early = @('--', '--half', '2'); late = @('--', '--half', '1'); all = @() }[$Part]
+$label = @{ early = ' (03:00)'; late = ' (05:30)'; all = '' }[$Part]
+# Обидва запуски пишуть у ті самі файли (cities.json, порівняння, git) — якщо ранній затягнувся
+# (комп'ютер прокинувся пізно), пізній чекає його завершення.
+$lock = New-Object Threading.Mutex($false, 'Local\PriceTrailDaily')
+$locked = $false
 
 # Короткий звіт на робочому столі після кожного запуску (перезаписується).
 function Write-StatusFile {
@@ -48,7 +60,7 @@ function Write-StatusFile {
     $done = $scrapeOut | Where-Object { $_ -match '^Готово' } | Select-Object -Last 1
     $status = if (-not $ok) { 'ПОМИЛКА' } elseif ($done -match 'з помилками [1-9]') { 'ЧАСТКОВО (деякі міста не зібрано)' } else { 'УСПІШНО' }
     $lines = @(
-        'PriceTrail — щоденний збір цін',
+        "PriceTrail — щоденний збір цін$label",
         '',
         "Статус: $status",
         "Початок:    $($started.ToString('dd.MM.yyyy HH:mm:ss'))",
@@ -64,13 +76,15 @@ function Write-StatusFile {
         $lines += "Зміни за сьогодні (міст: $($sum.cities)): подешевшало $($sum.down), подорожчало $($sum.up), нових акцій $($sum.sale), акцій закінчилось $($sum.saleEnd), після акції дорожче, ніж до неї, $($sum.saleUp), після акції ціна та сама $($sum.saleKept), нових товарів $($sum.added)"
     }
     $lines += '', "Сайт: https://fima02.github.io/pricetrail/", "Повний журнал: $(Join-Path $root 'daily.log')"
-    $file = Join-Path ([Environment]::GetFolderPath('Desktop')) 'PriceTrail — статус збору.txt'
+    $file = Join-Path ([Environment]::GetFolderPath('Desktop')) "PriceTrail — статус збору$label.txt"
     $lines | Out-File -FilePath $file -Encoding utf8
 }
 
 try {
     [Win32.Power]::SetThreadExecutionState($ES_CONTINUOUS -bor $ES_SYSTEM_REQUIRED) | Out-Null
-    Write-Host "Старт: $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')"
+    Write-Host "Старт: $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss'), частина: $Part"
+    try { $locked = $lock.WaitOne([TimeSpan]::FromHours(2)) } catch [Threading.AbandonedMutexException] { $locked = $true }
+    if (-not $locked) { throw 'попередній запуск збору досі не завершився (чекали 2 год)' }
     # Після пробудження мережа піднімається не одразу — чекаємо до 3 хвилин.
     for ($i = 0; $i -lt 36; $i++) {
         try { Invoke-WebRequest -Uri 'https://github.com' -Method Head -UseBasicParsing -TimeoutSec 5 | Out-Null; break }
@@ -82,16 +96,16 @@ try {
     # Його вивід — у файли, у журнал дописуємо після АТБ. Збій Сільпо не зриває публікацію цін АТБ.
     $silpoLog = Join-Path $root '.scratch\silpo-daily.log'
     New-Item -ItemType Directory -Force (Split-Path $silpoLog) | Out-Null
-    try {
+    if ($full) { try {
         $silpoProc = Start-Process node -ArgumentList 'scraper/silpo.js' -WorkingDirectory $root -NoNewWindow -PassThru `
             -RedirectStandardOutput $silpoLog -RedirectStandardError "$silpoLog.err"
         $null = $silpoProc.Handle # без цього в PowerShell 5.1 ExitCode після завершення буває порожнім
     } catch {
         $silpoNote = "Сільпо: ПОМИЛКА запуску ($_)"
-    }
+    } }
     Write-Host '== Збір цін'
     # Виводимо в журнал і водночас запам'ятовуємо — для звіту на робочому столі.
-    $scrapeOut = @(npm run scrape | ForEach-Object { Write-Host $_; $_ })
+    $scrapeOut = @(npm run scrape @scrapeArgs | ForEach-Object { Write-Host $_; $_ })
     if ($LASTEXITCODE -ne 0) { throw "Збір цін завершився з кодом $LASTEXITCODE" }
     if ($silpoProc) {
         Write-Host '== Збір цін Сільпо (йшов паралельно)'
@@ -101,19 +115,19 @@ try {
         $n = @($silpoOut | Where-Object { $_ -match '^\[.+\] \d+ товарів' }).Count
         $silpoNote = if ($silpoProc.ExitCode -eq 0) { "Сільпо: зібрано міст $n" } else { "Сільпо: ЧАСТКОВО (код $($silpoProc.ExitCode)), зібрано міст $n" }
     }
-    Write-Host $silpoNote
+    if ($silpoNote) { Write-Host $silpoNote }
     # Акції «Траш!» (тестова копія) — після Сільпо: розділи товарів беруться з його каталогу. Кілька секунд; збій не зриває публікацію.
-    Write-Host '== Акції «Траш!»'
-    try {
+    if ($full) { Write-Host '== Акції «Траш!»' }
+    if ($full) { try {
         $thrashOut = @(node scraper/thrash.js | ForEach-Object { Write-Host $_; $_ })
         $thrashNote = if ($LASTEXITCODE -eq 0) { $thrashOut | Where-Object { $_ -match '^Траш!:' } | Select-Object -Last 1 } else { "Траш!: ПОМИЛКА (код $LASTEXITCODE)" }
     } catch {
         $thrashNote = "Траш!: ПОМИЛКА ($_)"
-    }
+    } }
     if ($thrashNote) { $silpoNote = "$silpoNote`r`n$thrashNote" }
     # Раз на тиждень (у неділю) — знімок рівня цін у всіх містах АТБ для мапи на головній (≈45 хв).
     # Його збій не зриває щоденну публікацію: на мапі лишається знімок минулого тижня.
-    if ($started.DayOfWeek -eq [DayOfWeek]::Sunday) {
+    if ($full -and $started.DayOfWeek -eq [DayOfWeek]::Sunday) {
         Write-Host '== Знімок рівня цін (щотижня)'
         try {
             $snapOut = @(node scraper/snapshot.js --fresh | ForEach-Object { Write-Host $_; $_ })
@@ -133,10 +147,11 @@ try {
         $snapNote = "$snapNote`r`n$note"
     }
     # silpo-stores.json — запам'ятовані магазини Сільпо (новий з'являється, коли в місті вперше знайшовся магазин).
-    Invoke-Step 'git add' { git add site/data scraper/silpo-stores.json }
+    # stores.json — запам'ятовані магазини АТБ (новий з'являється для щойно доданого міста).
+    Invoke-Step 'git add' { git add site/data scraper/silpo-stores.json scraper/stores.json }
     git diff --cached --quiet
     if ($LASTEXITCODE -ne 0) {
-        Invoke-Step 'git commit' { git commit --quiet -m "Ціни за $(Get-Date -Format 'yyyy-MM-dd')" }
+        Invoke-Step 'git commit' { git commit --quiet -m "Ціни за $(Get-Date -Format 'yyyy-MM-dd')$label" }
         Invoke-Step 'git push' { git push --quiet }
         $result = 'Дані опубліковано на сайті (оновиться за кілька хвилин).'
     } else {
@@ -151,6 +166,7 @@ try {
 } finally {
     # Збір АТБ упав, а Сільпо ще йде — зупиняємо, щоб не лишився висіти після завершення завдання.
     if ($silpoProc -and -not $silpoProc.HasExited) { $silpoProc.Kill() }
+    if ($locked) { $lock.ReleaseMutex() }
     [Win32.Power]::SetThreadExecutionState($ES_CONTINUOUS) | Out-Null
     try { Write-StatusFile } catch { Write-Host "Не вдалося записати звіт: $_" }
     Stop-Transcript | Out-Null

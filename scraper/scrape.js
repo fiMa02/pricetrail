@@ -412,7 +412,11 @@ async function scrapeCity(city, store, categories, groupMap) {
 async function main() {
   const started = Date.now();
   const only = argValue('--city')?.split(',').map((s) => s.trim());
-  const cities = only ? CITIES.filter((c) => only.includes(c.name) || only.includes(c.slug)) : CITIES;
+  // --half 1 / --half 2 — перша чи друга половина списку міст (збираються в різний час, див. scripts/daily.ps1).
+  const half = Number(argValue('--half')) || 0;
+  const mid = Math.ceil(CITIES.length / 2);
+  const pool = half === 1 ? CITIES.slice(0, mid) : half === 2 ? CITIES.slice(mid) : CITIES;
+  const cities = only ? pool.filter((c) => only.includes(c.name) || only.includes(c.slug)) : pool;
   if (!cities.length) throw new Error(`Невідоме місто: ${only}`);
 
   // Сесія потрібна для запиту списку магазинів (CSRF-токен + cookie).
