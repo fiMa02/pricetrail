@@ -258,7 +258,7 @@ function applyPerSetting() {
 
 function renderSettings() {
   document.querySelector('.top').classList.add('is-product');
-  document.title = 'Налаштування — PriceTrail';
+  document.title = 'Налаштування — Жаба';
   scrollTo(0, 0);
   const seg = (name, options, value) =>
     `<div class="seg settings-seg" role="group" aria-label="${esc(name)}">${Object.entries(options)
@@ -617,12 +617,12 @@ async function notifyPanel() {
   if (!$('#notify')) return;
   el.innerHTML = bg
     ? '<p class="note">🔔 Сповіщення увімкнено: ціни з обраного перевіряються у фоні раз на день, навіть коли сайт закрито.</p>'
-    : '<p class="note">🔔 Сповіщення дозволено, але фонова перевірка в цьому браузері недоступна. Вона працює в Chrome або Edge, якщо встановити PriceTrail як застосунок (меню браузера → «Встановити» / «Додати на головний екран»). Доти подешевшання видно тут і на значку ♥ угорі.</p>';
+    : '<p class="note">🔔 Сповіщення дозволено, але фонова перевірка в цьому браузері недоступна. Вона працює в Chrome або Edge, якщо встановити Жабу як застосунок (меню браузера → «Встановити» / «Додати на головний екран»). Доти подешевшання видно тут і на значку ♥ угорі.</p>';
 }
 
 function renderFavs() {
   document.querySelector('.top').classList.add('is-product');
-  document.title = 'Обране — PriceTrail';
+  document.title = 'Обране — Жаба';
   scrollTo(0, 0);
   const items = Object.entries(favs).map(([id, f]) => ({ id: +id, f, p: state.byId.get(+id) }));
   const hits = items.filter(({ p, f }) => p && favDrop(p, f));
@@ -734,7 +734,7 @@ const cartToggle = (p) =>
 let cartFrom = '#/';
 function renderCart() {
   document.querySelector('.top').classList.add('is-product');
-  document.title = 'Список покупок — PriceTrail';
+  document.title = 'Список покупок — Жаба';
   const ids = Object.keys(cart).map(Number);
   let html = `${backLink(cartFrom)}<h1 class="page-title">Список покупок</h1>`;
   if (!ids.length) {
@@ -1573,7 +1573,7 @@ function renderHome() {
   const top = document.querySelector('.top');
   top.classList.remove('is-product');
   top.classList.add('is-home');
-  document.title = 'PriceTrail — історія цін';
+  document.title = 'Жаба — історія цін';
   const d = todayData();
   const tabs = d ? d.tabs.filter((t) => t[2].length) : [];
   const all = `<a class="home-all" href="#/all">Усі товари <b>${state.products.length.toLocaleString('uk')}</b> →</a>`;
@@ -1611,7 +1611,7 @@ function renderHome() {
 
 function renderToday(tab) {
   document.querySelector('.top').classList.add('is-product');
-  document.title = 'Що змінилося — PriceTrail';
+  document.title = 'Що змінилося — Жаба';
   scrollTo(0, 0);
   const d = todayData();
   const head = `<a class="back" href="#/">← ${BETA ? 'Головна' : 'Усі товари'}</a><h1 class="page-title">Що змінилося</h1>`;
@@ -1745,7 +1745,7 @@ function initFilterPanel() {
 
 function renderList() {
   document.querySelector('.top').classList.remove('is-product', 'is-home');
-  document.title = 'PriceTrail — історія цін';
+  document.title = 'Жаба — історія цін';
   const list = filtered();
   renderGroups();
   if (!list.length) {
@@ -1792,7 +1792,7 @@ const adTile = () => `<aside class="card ad ad--wide" aria-label="Реклама
     <div class="ad__media"><span aria-hidden="true">📣</span></div>
     <div class="card__body">
       <div class="ad__title">Тут може бути ваша реклама</div>
-      <div class="note">Тестовий рекламний блок PriceTrail</div>
+      <div class="note">Тестовий рекламний блок Жаби</div>
       <span class="ad__btn">Дізнатися більше</span>
     </div>
   </aside>`;
@@ -1898,7 +1898,7 @@ async function renderProduct(id, slug) {
     app.innerHTML = `${backLink()}<p class="status">Товар не знайдено — можливо, його вже немає в каталозі.</p>`;
     return;
   }
-  document.title = `${p.name} — PriceTrail`;
+  document.title = `${p.name} — Жаба`;
   app.innerHTML = `${backLink()}
     <div class="product">
       <div class="product__media"><img class="product__img" src="${esc(p.img)}" alt=""></div>
