@@ -20,6 +20,10 @@
   --grid: #edf0f4;
   --map-mid: #b9bfca;
   --header: rgba(245, 246, 250, 0.82);
+  --frog: #2b8a3e;
+  --frog-2: #5f8f69;
+  --frog-top: linear-gradient(180deg, rgba(211, 240, 217, 0.94), rgba(232, 246, 235, 0.88));
+  --frog-line: #bfe3c7;
   --shadow: 0 1px 2px rgba(18, 21, 28, 0.04), 0 4px 16px rgba(18, 21, 28, 0.06);
   --shadow-hover: 0 2px 4px rgba(18, 21, 28, 0.05), 0 12px 32px rgba(18, 21, 28, 0.12);
   --r-lg: 20px;
@@ -50,6 +54,10 @@
   --grid: #202634;
   --map-mid: #5d6577;
   --header: rgba(12, 15, 20, 0.78);
+  --frog: #69db7c;
+  --frog-2: #7fae89;
+  --frog-top: linear-gradient(180deg, rgba(18, 46, 27, 0.92), rgba(13, 28, 19, 0.86));
+  --frog-line: #1f4a2c;
   --shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
   --shadow-hover: 0 12px 32px rgba(0, 0, 0, 0.45);
   color-scheme: dark;
@@ -76,18 +84,18 @@ svg { flex: none; }
   position: sticky;
   top: 0;
   z-index: 20;
-  background: var(--header);
+  background: var(--frog-top);
   -webkit-backdrop-filter: saturate(180%) blur(16px);
   backdrop-filter: saturate(180%) blur(16px);
-  border-bottom: 1px solid var(--line);
+  border-bottom: 1px solid var(--frog-line);
   padding-top: env(safe-area-inset-top, 0px);
 }
 .top__row { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding-block: 12px 8px; }
 .logo { display: flex; align-items: center; gap: 10px; font-size: 19px; font-weight: 600; letter-spacing: -0.02em; text-decoration: none; }
 .logo img { border-radius: 9px; }
-.logo b { font-weight: 800; }
+.logo b { font-weight: 800; color: var(--frog); }
 .logo span { display: grid; line-height: 1.1; }
-.logo small { font-size: 11.5px; font-weight: 500; letter-spacing: 0; color: var(--muted); }
+.logo small { font-size: 11.5px; font-weight: 500; letter-spacing: 0; color: var(--frog-2); }
 
 .city-pick {
   display: flex; align-items: center; gap: 4px;
