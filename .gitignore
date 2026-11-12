@@ -1,8 +1,7 @@
-node_modules/
-.scratch/
-daily.log
-# Будуються під час публікації (.github/workflows/deploy.yml)
-site/data/compare/
-site/data/cities/*/extra.json
-site/data/catalog.json
-site/data/chains/silpo/categories.json
+# У репозиторії — лише сайт із даними (site/) і його публікація (.github/). Збирачі цін (scraper/), щоденний запуск
+# (scripts/), залежності й інші службові файли лишаються тільки на домашньому комп'ютері.
+/*
+!/site/
+!/.github/
+!/.gitignore
+!/.gitattributes

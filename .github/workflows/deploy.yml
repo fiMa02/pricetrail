@@ -1,8 +1,8 @@
 name: Публікація сайту
 
-# Ціни збирає scripts/daily.ps1 на домашньому комп'ютері: сайт АТБ (Cloudflare)
-# блокує запити з серверів GitHub. Тут лише публікуємо site/ після кожного push.
-# Тестова гілка silpo-test публікується поряд, на /test/: її код з даними основного сайту. Публікувати
+# Ціни збирає щоденний скрипт на домашньому комп'ютері (сайт АТБ блокує запити з серверів GitHub); він же будує
+# похідні дані (порівняння міст, extra.json, catalog.json, categories.json). У репозиторії — лише site/, тут його публікуємо.
+# Тестова гілка silpo-test публікується поряд, на /test/: її сторінка з даними основного сайту. Публікувати
 # дозволено лише з main, тож тестова копія оновлюється з кожною публікацією main (і запуском вручну).
 on:
   push:
@@ -33,23 +33,13 @@ jobs:
           ref: silpo-test
           path: test-src
         continue-on-error: true
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 22
-      # Похідні дані будуємо тут, а не комітимо щодня (вони великі й повністю виводяться з products.json):
-      # порівняння міст (data/compare) і спільний каталог (data/cities/*/extra.json).
-      - run: node scraper/compare.js && node scraper/fallback.js
-      # Відповідність підкатегорій АТБ і Сільпо (data/chains/silpo/categories.json) — для порівняння мереж у тестовій копії.
-      - run: node scraper/chain-categories.js
-      # Тестова копія: сторінка й скрипти з гілки silpo-test у site/test/, дані — спільні (../data),
-      # каталоги інших мереж (data/chains) щодня збирає daily.ps1 у main; з тієї гілки — лише якщо в main їх немає.
+      # Тестова копія: сторінка й скрипти з гілки silpo-test у site/test/, дані — спільні (../data).
       - name: Тестова копія (/test/)
         run: |
           if [ -d test-src/site ]; then
             mkdir -p site/test
             cp test-src/site/index.html test-src/site/app.js test-src/site/style.css test-src/site/manifest.webmanifest test-src/site/icon* site/test/
             sed -i -E "s#(['\`])data/#\1../data/#g" site/test/app.js
-            if [ ! -d site/data/chains ] && [ -d test-src/site/data/chains ]; then cp -r test-src/site/data/chains site/data/; fi
           fi
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v4
