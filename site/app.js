@@ -171,8 +171,13 @@ const FAMILY = { silpo: 'f', thrash: 'f', fora: 'f', metro: 'z', auchan: 'z', no
 // спільних початків адрес фото й посилань. Префікси — ті самі, що в chain-store.js.
 const ZAKAZ = new Set(['metro', 'auchan', 'novus', 'tavriav', 'megamarket', 'ekomarket']);
 const PREFIX = {
-  img: { fora: 'https://content.fora.ua/sku/ecommerce/', grosh: 'https://d3og57k1dk4307.cloudfront.net/grosh/', zakaz: 'https://img2.zakaz.ua/' },
-  url: { fora: '/product/', zakaz: '/uk/products/' },
+  img: {
+    silpo: 'https://images.silpo.ua/products/300x300/webp/',
+    fora: 'https://content.fora.ua/sku/ecommerce/',
+    grosh: 'https://d3og57k1dk4307.cloudfront.net/grosh/',
+    zakaz: 'https://img2.zakaz.ua/',
+  },
+  url: { silpo: '/product/', fora: '/product/', zakaz: '/uk/products/' },
 };
 function expand(p) {
   if (p.id < ID_BASE.silpo) return p;
@@ -425,18 +430,29 @@ function initCityMenu() {
   });
 }
 
+// Незмінні поля товарів мережі (назва, фото, розділ…) однакові в усіх її містах — лежать один раз
+// у data/chains/<мережа>/catalog.json (scraper/chain-pack.js); у products.json міста — ціни й те, що відрізняється.
+const chainCatalogs = {};
+const chainCatalog = (c) =>
+  (chainCatalogs[c] ||= fetch(`data/chains/${c}/catalog.json`)
+    .then((r) => (r.ok ? r.json() : {}))
+    .catch(() => ({})));
+async function chainProducts(c) {
+  const [list, cat] = await Promise.all([
+    fetch(`${chainDir(c)}/products.json`)
+      .then((r) => (r.ok ? r.json() : []))
+      .catch(() => []),
+    NATIONAL.has(c) ? {} : chainCatalog(c),
+  ]);
+  return list.map((p) => (cat[p.id] ? { ...cat[p.id], ...p } : p));
+}
+
 // Товари інших мереж міста, яких ще немає в state.all (усі разом — десятки тисяч, тож вантажимо лише потрібні).
 async function ensureChains(chains) {
   const need = [...new Set(chains)].filter((c) => CITY_CHAINS.includes(c) && state.chains.includes(c) && !state.loaded.has(c));
   if (!need.length) return;
   const slug = state.city.slug;
-  const lists = await Promise.all(
-    need.map((c) =>
-      fetch(`${chainDir(c)}/products.json`)
-        .then((r) => (r.ok ? r.json() : []))
-        .catch(() => []),
-    ),
-  );
+  const lists = await Promise.all(need.map(chainProducts));
   if (state.city.slug !== slug) return;
   need.forEach((c, i) => {
     if (state.loaded.has(c)) return;
@@ -480,7 +496,7 @@ async function loadData() {
     optional(`${cityDir()}/extra.json`, []),
     fetch(`${cityDir()}/meta.json`).then((r) => r.json()),
     CITY_CHAINS.includes(state.chain) ? optional(`${chainDir(state.chain)}/meta.json`, null) : null,
-    ...eager.map((c) => optional(`${chainDir(c)}/products.json`, [])),
+    ...eager.map(chainProducts),
   ]);
   await withCatalog(extra);
   // Акції «Траш!» — якщо в місті є його магазини. До state.chains (порівняння каталогів) не входять: це лише акції.
