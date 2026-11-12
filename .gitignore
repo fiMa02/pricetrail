@@ -1,6 +1,7 @@
-node_modules/
-.scratch/
-daily.log
-# Будуються під час публікації (.github/workflows/deploy.yml)
-site/data/compare/
-site/data/cities/*/extra.json
+# Гілка тестової копії: у репозиторії — лише сторінка сайту (site/, без даних: дані /test/ — спільні з основним сайтом,
+# з гілки main). Збирачі, скрипти й службові файли лишаються тільки на домашньому комп'ютері.
+/*
+!/site/
+!/.gitignore
+!/.gitattributes
+/site/data/
