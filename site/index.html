@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>Жаба — історія цін</title>
   <meta name="description" content="Жаба — трекер цін у супермаркетах: пошук товарів, графік зміни ціни й перевірка акцій.">
-  <meta name="theme-color" content="#f5f6fa">
+  <meta name="theme-color" content="#f3f7f2">
   <script>
     // Тема: 'light' / 'dark' — вибір користувача, інакше як у системі. Ставимо до першого малювання.
     (function () {
@@ -15,7 +15,7 @@
         try { t = localStorage.getItem('theme'); } catch (e) {}
         var on = t === 'dark' || (t !== 'light' && dark.matches);
         document.documentElement.dataset.theme = on ? 'dark' : 'light';
-        document.querySelector('meta[name=theme-color]').content = on ? '#0c0f14' : '#f5f6fa';
+        document.querySelector('meta[name=theme-color]').content = on ? '#0b120e' : '#f3f7f2';
       };
       applyTheme();
       dark.addEventListener('change', applyTheme);
