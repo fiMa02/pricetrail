@@ -167,10 +167,27 @@ const CITY_CHAINS = ['silpo', 'fora', 'metro', 'auchan', 'novus', 'tavriav', 'me
 // f — Сільпо, «Траш!», Фора (Fozzy); z — мережі zakaz.ua (номер штрихкоду, scraper/zakaz-ids.json).
 const ID_BASE = { silpo: 10e6, thrash: 20e6, metro: 30e6, auchan: 40e6, novus: 50e6, tavriav: 60e6, megamarket: 70e6, ekomarket: 80e6, fora: 90e6, grosh: 100e6 };
 const FAMILY = { silpo: 'f', thrash: 'f', fora: 'f', metro: 'z', auchan: 'z', novus: 'z', tavriav: 'z', megamarket: 'z', ekomarket: 'z' };
+// Стислий запис товару інших мереж (scraper/chain-store.js, compact): без chain (мережа — за діапазоном id) і без
+// спільних початків адрес фото й посилань. Префікси — ті самі, що в chain-store.js.
+const ZAKAZ = new Set(['metro', 'auchan', 'novus', 'tavriav', 'megamarket', 'ekomarket']);
+const PREFIX = {
+  img: { fora: 'https://content.fora.ua/sku/ecommerce/', grosh: 'https://d3og57k1dk4307.cloudfront.net/grosh/', zakaz: 'https://img2.zakaz.ua/' },
+  url: { fora: '/product/', zakaz: '/uk/products/' },
+};
+function expand(p) {
+  if (p.id < ID_BASE.silpo) return p;
+  p.chain ||= chainById(p.id);
+  const key = ZAKAZ.has(p.chain) ? 'zakaz' : p.chain;
+  if (p.img && !/^https?:/.test(p.img) && PREFIX.img[key]) p.img = PREFIX.img[key] + p.img;
+  if (p.url && PREFIX.url[key] && !p.url.startsWith('/')) p.url = PREFIX.url[key] + p.url;
+  return p;
+}
 const chainById = (id) => Object.entries(ID_BASE).reduce((best, [c, b]) => (id >= b && b >= (ID_BASE[best] || 0) ? c : best), 'atb');
 const chainOf = (p) => p.chain || 'atb';
+// Мережі з одним каталогом на всі свої міста: «Траш!» (акції однакові всюди), Грош (ціни інтернет-магазину у Вінниці).
+const NATIONAL = new Set(['thrash', 'grosh']);
 const chainDir = (chain, slug = state.city.slug) =>
-  chain === 'atb' ? `data/cities/${slug}` : chain === 'thrash' ? 'data/chains/thrash' : `data/chains/${chain}/${slug}`;
+  chain === 'atb' ? `data/cities/${slug}` : NATIONAL.has(chain) ? `data/chains/${chain}` : `data/chains/${chain}/${slug}`;
 // Позначка мережі (на сторінці товару й у порівнянні).
 const chainTag = (p) => (MULTI_CHAIN ? `<span class="chain chain--${chainOf(p)}">${CHAINS[chainOf(p)]}</span>` : '');
 
@@ -425,6 +442,7 @@ async function ensureChains(chains) {
     if (state.loaded.has(c)) return;
     state.loaded.add(c);
     for (const p of lists[i]) {
+      expand(p);
       p._q = norm(`${p.name} ${p.brand ?? ''}`);
       p._per = perUnit(p);
       state.byId.set(p.id, p);
@@ -480,6 +498,7 @@ async function loadData() {
   state.byId = new Map();
   state.shards = new Map();
   for (const p of state.all) {
+    expand(p);
     p._q = norm(`${p.name} ${p.brand ?? ''}`);
     p._per = perUnit(p);
     state.byId.set(p.id, p);
@@ -493,6 +512,7 @@ async function loadData() {
   state.changes = await fetch(`${chainDir(state.chain)}/changes.json`)
     .then((r) => (r.ok ? r.json() : null))
     .catch(() => null);
+  for (const p of state.changes?.removed || []) expand(p);
   $('#updated').textContent =
     state.chain === 'thrash'
       ? `${state.city.name}, «Траш!»: лише акції, однакові в усіх магазинах мережі · ${m.productCount.toLocaleString('uk')} товарів · оновлено ${fmtDate(parseDate(m.updated))}`
@@ -1045,7 +1065,7 @@ function applyFilters() {
 function bindFilters() {
   $('#q').value = filters.q;
   // На вузькому екрані поруч стоїть сортування — довга підказка не вміщається.
-  if (MULTI_CHAIN) $('#q').placeholder = 'Товар, бренд або штрихкод';
+  $('#q').placeholder = 'Товар, бренд або штрихкод';
   if (matchMedia('(max-width: 520px)').matches) $('#q').placeholder = 'Пошук';
   $('#cat').value = filters.cat;
   applyPerSetting();
@@ -1093,7 +1113,7 @@ function bindFilters() {
     if (isHome()) location.hash = '#/all';
   });
   const scan = $('#scanBtn');
-  if (scan && MULTI_CHAIN && navigator.mediaDevices?.getUserMedia) {
+  if (scan && navigator.mediaDevices?.getUserMedia) {
     scan.hidden = false;
     scan.onclick = (e) => {
       e.preventDefault();
@@ -1118,31 +1138,46 @@ const perSorter = (unit) => (a, b) => {
   return (x == null) - (y == null) || (x ?? a.price) - (y ?? b.price);
 };
 
-// ---------- ТЕСТ: пошук за штрихкодом ----------
-// data/barcodes/NN.json (NN — дві останні цифри): штрихкод → [z<номер> | f<код>] — товари мереж zakaz.ua
-// і групи Fozzy (будує scraper/barcodes.js). АТБ і Грош штрихкодів не публікують: їхній товар — такий самий (peerOf).
-const isBarcode = (q) => MULTI_CHAIN && /^\d{8,14}$/.test(q.trim());
+// ---------- Пошук за штрихкодом ----------
+// data/barcodes/NN.json (NN — дві останні цифри): штрихкод → { n: назва, r: [z<номер> | f<код>] } — товари мереж
+// zakaz.ua і групи Fozzy (будує scraper/barcodes.js). АТБ і Грош штрихкодів не публікують: їхній товар шукаємо
+// за назвою (той самий товар — за назвою й фасовкою, autoMatch). На основному сайті — лише АТБ.
+const isBarcode = (q) => /^\d{8,14}$/.test(q.trim());
+// Найсхожий товар мережі chain за назвою (sample — { name }), якщо це той самий товар.
+function sameByName(sample, chain) {
+  let best = null;
+  let top = 0;
+  for (const x of state.all) {
+    if (chainOf(x) !== chain) continue;
+    const sc = matchScore(sample, x);
+    if (sc > top && autoMatch(sample, x, sc)) [best, top] = [x, sc];
+  }
+  return best;
+}
 async function lookupBarcode(q) {
   const code = q.trim().replace(/^0+/, '');
   const shard = await fetch(`data/barcodes/${code.slice(-2).padStart(2, '0')}.json`)
     .then((r) => (r.ok ? r.json() : {}))
     .catch(() => ({}));
-  const ids = [];
-  for (const ref of shard[code] || []) {
-    for (const [c, fam] of Object.entries(FAMILY)) if (fam === ref[0]) ids.push([c, ID_BASE[c] + Number(ref.slice(1))]);
-  }
-  await ensureChains(ids.map(([c]) => c));
-  const hits = [...new Set(ids.map(([, id]) => state.byId.get(id)).filter((p) => p && !p.from))];
-  // АТБ і Грош — такий самий товар (за назвою й фасовкою) будь-якої зі знайдених мереж.
-  if (hits.length) {
-    await ensureChains(['grosh']);
-    for (const c of ['atb', 'grosh']) {
-      if (!state.loaded.has(c)) continue;
-      const x = hits.map((h) => peerOf(h, c)).find(Boolean);
-      if (x && !hits.includes(x)) hits.unshift(x);
+  const entry = shard[code];
+  const refs = Array.isArray(entry) ? entry : entry?.r || [];
+  const hits = [];
+  if (MULTI_CHAIN) {
+    const ids = [];
+    for (const ref of refs) {
+      for (const [c, fam] of Object.entries(FAMILY)) if (fam === ref[0]) ids.push([c, ID_BASE[c] + Number(ref.slice(1))]);
     }
+    await ensureChains([...ids.map(([c]) => c), 'grosh']);
+    hits.push(...new Set(ids.map(([, id]) => state.byId.get(id)).filter((p) => p && !p.from)));
   }
-  return hits;
+  // АТБ (і Грош) — такий самий товар за назвою: з покажчика або знайденого в іншій мережі.
+  const samples = [...(entry?.n ? [{ name: entry.n }] : []), ...hits];
+  for (const c of MULTI_CHAIN ? ['atb', 'grosh'] : ['atb']) {
+    if (c !== 'atb' && !state.loaded?.has(c)) continue;
+    const x = samples.map((h) => sameByName(h, c)).find(Boolean);
+    if (x && !hits.includes(x)) hits.unshift(x);
+  }
+  return { hits, name: entry?.n || '' };
 }
 
 // Сканер штрихкоду камерою: вбудований BarcodeDetector (Chrome, Android), інакше — бібліотека ZXing (Safari, iPhone).
@@ -1907,9 +1942,9 @@ function renderList() {
   const q = filters.q.trim();
   if (isBarcode(q) && state.barcode?.q !== q) {
     app.innerHTML = skeleton(4);
-    lookupBarcode(q).then((hits) => {
+    lookupBarcode(q).then(({ hits, name }) => {
       if (filters.q.trim() !== q) return;
-      state.barcode = { q, hits };
+      state.barcode = { q, hits, name };
       renderList();
     });
     return;
@@ -1917,8 +1952,11 @@ function renderList() {
   const list = filtered();
   renderGroups();
   if (!list.length) {
+    const known = isBarcode(q) && state.barcode?.name;
     const why = isBarcode(q)
-      ? `Товару зі штрихкодом ${esc(q)} у мережах міста ${esc(state.city.name)} не знайдено. АТБ і Грош штрихкодів не публікують — їхні товари знаходяться лише через такий самий товар інших мереж.`
+      ? known
+        ? `Штрихкод ${esc(q)} — «${esc(known)}», але ${MULTI_CHAIN ? `у мережах міста ${esc(state.city.name)}` : 'в АТБ'} такого товару не знайшлося.`
+        : `Штрихкоду ${esc(q)} немає в нашому покажчику. АТБ штрихкодів не публікує — товари АТБ знаходяться через такий самий товар інших мереж.`
       : filters.inflated
         ? 'Акцій із завищеною «ціною до знижки» тут поки не виявлено'
         : 'Спробуйте іншу назву або приберіть фільтри';

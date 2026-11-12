@@ -837,9 +837,9 @@ th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--lin
 .vs-hint a { color: var(--accent); }
 
 /* ТЕСТ: сканер штрихкоду */
-.scan-btn { flex: none; display: inline-grid; place-items: center; width: 34px; height: 34px; margin-right: -6px; border: 0; border-radius: 10px; background: none; color: var(--ink-2); cursor: pointer; }
+.scan-btn { flex: none; display: grid; place-items: center; width: 36px; height: 36px; margin: 0 -8px 0 0; padding: 0; border: 0; border-radius: 10px; background: none; color: var(--ink-2); cursor: pointer; line-height: 0; }
 .scan-btn:hover { color: var(--accent); background: var(--surface-2); }
-.scan-btn svg { width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.search .scan-btn svg { display: block; width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
 .scan-btn[hidden] { display: none; }
 .scanner { position: fixed; inset: 0; z-index: 100; display: grid; place-items: center; background: rgba(0, 0, 0, .8); padding: 16px; }
 .scanner__box { width: min(480px, 100%); display: grid; gap: 12px; justify-items: center; }
