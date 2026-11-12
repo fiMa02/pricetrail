@@ -759,6 +759,14 @@ th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--lin
 .chain--atb { background: color-mix(in oklab, #1b4fd8 16%, transparent); color: color-mix(in oklab, #1b4fd8 80%, var(--ink)); }
 .chain--silpo { background: color-mix(in oklab, #f08c00 20%, transparent); color: color-mix(in oklab, #c56a00 85%, var(--ink)); }
 .chain--thrash { background: color-mix(in oklab, #e5372b 16%, transparent); color: color-mix(in oklab, #c0261c 85%, var(--ink)); }
+.chain--fora { background: color-mix(in oklab, #e4572e 16%, transparent); color: color-mix(in oklab, #b8401c 85%, var(--ink)); }
+.chain--metro { background: color-mix(in oklab, #002d72 16%, transparent); color: color-mix(in oklab, #002d72 80%, var(--ink)); }
+.chain--auchan { background: color-mix(in oklab, #d6180b 14%, transparent); color: color-mix(in oklab, #b3140a 85%, var(--ink)); }
+.chain--novus { background: color-mix(in oklab, #6aa121 18%, transparent); color: color-mix(in oklab, #4c7a12 85%, var(--ink)); }
+.chain--tavriav { background: color-mix(in oklab, #c8102e 14%, transparent); color: color-mix(in oklab, #a00d25 85%, var(--ink)); }
+.chain--megamarket { background: color-mix(in oklab, #7b2d8e 16%, transparent); color: color-mix(in oklab, #62226f 85%, var(--ink)); }
+.chain--ekomarket { background: color-mix(in oklab, #2e9b48 18%, transparent); color: color-mix(in oklab, #217536 85%, var(--ink)); }
+.chain--grosh { background: color-mix(in oklab, #f2a900 22%, transparent); color: color-mix(in oklab, #9c6b00 90%, var(--ink)); }
 .card__vs { display: grid; gap: 2px; padding-top: 6px; border-top: 1px dashed var(--line); font-size: 12px; color: var(--ink-2); }
 .card__vs-row { display: flex; justify-content: space-between; gap: 6px; font-variant-numeric: tabular-nums; }
 .card__vs .good { color: var(--good); }
@@ -827,3 +835,15 @@ th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--lin
 .vs.is-collapsed .panel__head { margin-bottom: 0; }
 .vs-hint { margin: 12px 0 0; }
 .vs-hint a { color: var(--accent); }
+
+/* ТЕСТ: сканер штрихкоду */
+.scan-btn { flex: none; display: inline-grid; place-items: center; width: 34px; height: 34px; margin-right: -6px; border: 0; border-radius: 10px; background: none; color: var(--ink-2); cursor: pointer; }
+.scan-btn:hover { color: var(--accent); background: var(--surface-2); }
+.scan-btn svg { width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.scan-btn[hidden] { display: none; }
+.scanner { position: fixed; inset: 0; z-index: 100; display: grid; place-items: center; background: rgba(0, 0, 0, .8); padding: 16px; }
+.scanner__box { width: min(480px, 100%); display: grid; gap: 12px; justify-items: center; }
+.scanner__view { position: relative; width: 100%; }
+.scanner video { display: block; width: 100%; aspect-ratio: 4 / 3; object-fit: cover; border-radius: 16px; background: #000; }
+.scanner__frame { position: absolute; left: 10%; right: 10%; top: 30%; bottom: 30%; border: 3px solid #fff; border-radius: 12px; pointer-events: none; }
+.scanner__note { margin: 0; color: #fff; text-align: center; }

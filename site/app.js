@@ -150,8 +150,24 @@ const cityDir = () => `data/cities/${state.city.slug}`;
 // Інші мережі (Сільпо, «Траш!») і порівняння з ними — поки лише в тестовій копії (/test/). Основний сайт — тільки АТБ;
 // код той самий, тож зміни переносяться з тесту на основний простим копіюванням файлів.
 const MULTI_CHAIN = /\/test\//.test(location.pathname);
-const CHAINS = { atb: 'АТБ', silpo: 'Сільпо', thrash: 'Траш!' };
-const CHAIN_SITE = { atb: ['https://www.atbmarket.com', 'atbmarket.com'], silpo: ['https://silpo.ua', 'silpo.ua'], thrash: ['https://thrash.ua', 'thrash.ua'] };
+const CHAINS = {
+  atb: 'АТБ', silpo: 'Сільпо', fora: 'Фора', thrash: 'Траш!', metro: 'Метро', auchan: 'Ашан', novus: 'Новус',
+  tavriav: 'Таврія В', megamarket: 'МегаМаркет', ekomarket: 'ЕкоМаркет', grosh: 'Грош',
+};
+const CHAIN_SITE = {
+  atb: ['https://www.atbmarket.com', 'atbmarket.com'], silpo: ['https://silpo.ua', 'silpo.ua'], thrash: ['https://thrash.ua', 'thrash.ua'],
+  fora: ['https://fora.ua', 'fora.ua'], metro: ['https://metro.zakaz.ua', 'metro.zakaz.ua'], auchan: ['https://auchan.zakaz.ua', 'auchan.zakaz.ua'],
+  novus: ['https://novus.zakaz.ua', 'novus.zakaz.ua'], tavriav: ['https://tavriav.zakaz.ua', 'tavriav.zakaz.ua'],
+  megamarket: ['https://megamarket.zakaz.ua', 'megamarket.zakaz.ua'], ekomarket: ['https://eko.zakaz.ua', 'eko.zakaz.ua'],
+  grosh: ['https://online.grosh.ua', 'online.grosh.ua'],
+};
+// Мережі з каталогом по містах (data/chains/<мережа>/<місто>/), крім АТБ; «Траш!» — один каталог на всі міста.
+const CITY_CHAINS = ['silpo', 'fora', 'metro', 'auchan', 'novus', 'tavriav', 'megamarket', 'ekomarket', 'grosh'];
+// id товару = база мережі + код. У «сім'ї» мереж коди спільні (той самий товар — той самий код):
+// f — Сільпо, «Траш!», Фора (Fozzy); z — мережі zakaz.ua (номер штрихкоду, scraper/zakaz-ids.json).
+const ID_BASE = { silpo: 10e6, thrash: 20e6, metro: 30e6, auchan: 40e6, novus: 50e6, tavriav: 60e6, megamarket: 70e6, ekomarket: 80e6, fora: 90e6, grosh: 100e6 };
+const FAMILY = { silpo: 'f', thrash: 'f', fora: 'f', metro: 'z', auchan: 'z', novus: 'z', tavriav: 'z', megamarket: 'z', ekomarket: 'z' };
+const chainById = (id) => Object.entries(ID_BASE).reduce((best, [c, b]) => (id >= b && b >= (ID_BASE[best] || 0) ? c : best), 'atb');
 const chainOf = (p) => p.chain || 'atb';
 const chainDir = (chain, slug = state.city.slug) =>
   chain === 'atb' ? `data/cities/${slug}` : chain === 'thrash' ? 'data/chains/thrash' : `data/chains/${chain}/${slug}`;
@@ -173,22 +189,21 @@ const nearestCity = (list, c) => list.reduce((a, b) => (Math.hypot(b.lat - c.lat
 
 async function loadCities() {
   state.cities = await fetch('data/cities.json').then((r) => r.json());
-  const silpo = MULTI_CHAIN
-    ? await fetch('data/chains/silpo/cities.json')
-        .then((r) => (r.ok ? r.json() : []))
-        .catch(() => [])
-    : [];
   state.chainCities = { atb: state.cities };
-  const silpoCities = silpo.map((x) => state.cities.find((c) => c.slug === x.slug) && { ...state.cities.find((c) => c.slug === x.slug), address: x.address }).filter(Boolean);
-  if (silpoCities.length) state.chainCities.silpo = silpoCities;
-  // «Траш!» — лише акції, однакові в усіх його магазинах; міста — наші, де він є (адреси магазину немає).
-  const thrash = MULTI_CHAIN
-    ? await fetch('data/chains/thrash/cities.json')
-        .then((r) => (r.ok ? r.json() : []))
-        .catch(() => [])
-    : [];
-  const thrashCities = state.cities.filter((c) => thrash.some((x) => x.slug === c.slug));
-  if (thrashCities.length) state.chainCities.thrash = thrashCities;
+  if (MULTI_CHAIN) {
+    // Міста інших мереж — ті з наших, де мережа є (адреса — її магазину). «Траш!» — лише акції, однакові в усіх його магазинах.
+    const lists = await Promise.all(
+      [...CITY_CHAINS, 'thrash'].map((c) =>
+        fetch(`data/chains/${c}/cities.json`)
+          .then((r) => (r.ok ? r.json() : []))
+          .catch(() => []),
+      ),
+    );
+    [...CITY_CHAINS, 'thrash'].forEach((c, i) => {
+      const own = lists[i].map((x) => state.cities.find((y) => y.slug === x.slug) && { ...state.cities.find((y) => y.slug === x.slug), ...(x.address ? { address: x.address } : {}) }).filter(Boolean);
+      if (own.length) state.chainCities[c] = own;
+    });
+  }
   state.chain = state.chainCities[store.get('chain')] ? store.get('chain') : 'atb';
   const saved = store.get('city');
   const all = state.cities.find((c) => c.slug === saved) || state.cities.find((c) => c.slug === 'kyiv') || state.cities[0];
@@ -211,6 +226,7 @@ async function loadCities() {
 function initChainPick() {
   const sel = $('#chainSel');
   sel.hidden = Object.keys(state.chainCities).length < 2;
+  for (const o of sel.options) o.hidden = !state.chainCities[o.value];
   sel.value = state.chain;
   sel.onchange = async () => {
     state.chain = sel.value;
@@ -392,6 +408,44 @@ function initCityMenu() {
   });
 }
 
+// Товари інших мереж міста, яких ще немає в state.all (усі разом — десятки тисяч, тож вантажимо лише потрібні).
+async function ensureChains(chains) {
+  const need = [...new Set(chains)].filter((c) => CITY_CHAINS.includes(c) && state.chains.includes(c) && !state.loaded.has(c));
+  if (!need.length) return;
+  const slug = state.city.slug;
+  const lists = await Promise.all(
+    need.map((c) =>
+      fetch(`${chainDir(c)}/products.json`)
+        .then((r) => (r.ok ? r.json() : []))
+        .catch(() => []),
+    ),
+  );
+  if (state.city.slug !== slug) return;
+  need.forEach((c, i) => {
+    if (state.loaded.has(c)) return;
+    state.loaded.add(c);
+    for (const p of lists[i]) {
+      p._q = norm(`${p.name} ${p.brand ?? ''}`);
+      p._per = perUnit(p);
+      state.byId.set(p.id, p);
+      state.all.push(p);
+    }
+  });
+  peersFor = null;
+}
+// extra.json може бути стислим — лише ціни й місто (from); назви, фото, розділи — у спільному data/catalog.json
+// (однакові для всіх міст; будує scraper/fallback.js).
+let catalogCache;
+async function withCatalog(extra) {
+  if (!extra.length || extra[0].name) return;
+  catalogCache ||= fetch('data/catalog.json')
+    .then((r) => (r.ok ? r.json() : {}))
+    .catch(() => ({}));
+  const cat = await catalogCache;
+  for (const p of extra) Object.assign(p, cat[p.id]);
+  for (let i = extra.length - 1; i >= 0; i--) if (!extra[i].name) extra.splice(i, 1);
+}
+
 async function loadData() {
   // Каталог спільний для всіх міст: products.json — товари цього міста, extra.json — решта,
   // з цінами найближчого міста, де вони є (поле from), — будує scraper/fallback.js.
@@ -399,24 +453,30 @@ async function loadData() {
     fetch(file)
       .then((r) => (r.ok ? r.json() : fallback))
       .catch(() => fallback);
-  const [own, extra, meta, silpo, silpoMeta] = await Promise.all([
+  // Інші мережі міста: одразу вантажимо Сільпо (порівняння на плитках) і вибрану мережу; решту — коли знадобляться
+  // (порівняння на сторінці товару, пошук за штрихкодом) — ensureChains.
+  const inCity = (c) => state.chainCities[c]?.some((x) => x.slug === state.city.slug);
+  const eager = [...new Set(['silpo', state.chain])].filter((c) => CITY_CHAINS.includes(c) && inCity(c));
+  const [own, extra, meta, chainMeta, ...lists] = await Promise.all([
     fetch(`${cityDir()}/products.json`).then((r) => r.json()),
     optional(`${cityDir()}/extra.json`, []),
     fetch(`${cityDir()}/meta.json`).then((r) => r.json()),
-    state.chainCities.silpo ? optional(`${chainDir('silpo')}/products.json`, []) : [],
-    state.chainCities.silpo ? optional(`${chainDir('silpo')}/meta.json`, null) : null,
+    CITY_CHAINS.includes(state.chain) ? optional(`${chainDir(state.chain)}/meta.json`, null) : null,
+    ...eager.map((c) => optional(`${chainDir(c)}/products.json`, [])),
   ]);
+  await withCatalog(extra);
   // Акції «Траш!» — якщо в місті є його магазини. До state.chains (порівняння каталогів) не входять: це лише акції.
   const hasThrash = state.chainCities.thrash?.some((c) => c.slug === state.city.slug);
   const [thrash, thrashMeta] = hasThrash
     ? await Promise.all([optional('data/chains/thrash/products.json', []), optional('data/chains/thrash/meta.json', null)])
     : [[], null];
   state.thrash = thrash;
-  // Мережі, що є в цьому місті (для порівняння на сторінці товару).
-  state.chains = silpo.length ? ['atb', 'silpo'] : ['atb'];
+  // Мережі, що є в цьому місті (для порівняння на сторінці товару); state.loaded — чиї товари вже в state.all.
+  state.chains = ['atb', ...CITY_CHAINS.filter(inCity)];
+  state.loaded = new Set(['atb', ...eager, ...(thrash.length ? ['thrash'] : [])]);
   const collator = new Intl.Collator('uk');
   // state.all — товари всіх мереж міста (сторінки товарів, обране, порівняння); state.products — лише вибраної мережі.
-  state.all = own.concat(extra, silpo, thrash).sort((a, b) => collator.compare(a.name, b.name));
+  state.all = own.concat(extra, ...lists, thrash).sort((a, b) => collator.compare(a.name, b.name));
   state.byId = new Map();
   state.shards = new Map();
   for (const p of state.all) {
@@ -428,7 +488,7 @@ async function loadData() {
   // Картка АТБ є лише в АТБ: в інших мережах фільтра не показуємо (і він не діє).
   $('#card').closest('label').hidden = state.chain !== 'atb';
   state.products = products;
-  const m = (state.chain === 'silpo' && silpoMeta) || (state.chain === 'thrash' && thrashMeta) || meta;
+  const m = (state.chain === 'thrash' && thrashMeta) || chainMeta || meta;
   state.meta = m;
   state.changes = await fetch(`${chainDir(state.chain)}/changes.json`)
     .then((r) => (r.ok ? r.json() : null))
@@ -760,7 +820,7 @@ function renderCart() {
   const elsewhere = priced.filter((x) => x.p.from).length;
   const missing = items.length - priced.length;
   // Мережа — із запису (старі записи без неї — за діапазоном id: Сільпо від 10 млн, «Траш!» від 20 млн).
-  const chainId = ({ id, c }) => c.chain || (id >= THRASH_ID_BASE ? 'thrash' : id >= SILPO_ID_BASE ? 'silpo' : 'atb');
+  const chainId = ({ id, c }) => c.chain || chainById(id);
   const byChain = Object.keys(CHAINS)
     .map((chain) => [chain, items.filter((x) => chainId(x) === chain)])
     .filter(([, list]) => list.length);
@@ -985,6 +1045,7 @@ function applyFilters() {
 function bindFilters() {
   $('#q').value = filters.q;
   // На вузькому екрані поруч стоїть сортування — довга підказка не вміщається.
+  if (MULTI_CHAIN) $('#q').placeholder = 'Товар, бренд або штрихкод';
   if (matchMedia('(max-width: 520px)').matches) $('#q').placeholder = 'Пошук';
   $('#cat').value = filters.cat;
   applyPerSetting();
@@ -1031,6 +1092,14 @@ function bindFilters() {
   $('#q').addEventListener('focus', () => {
     if (isHome()) location.hash = '#/all';
   });
+  const scan = $('#scanBtn');
+  if (scan && MULTI_CHAIN && navigator.mediaDevices?.getUserMedia) {
+    scan.hidden = false;
+    scan.onclick = (e) => {
+      e.preventDefault();
+      openScanner();
+    };
+  }
   $('#q').addEventListener('input', () => {
     clearTimeout(t);
     t = setTimeout(update, 150);
@@ -1049,7 +1118,85 @@ const perSorter = (unit) => (a, b) => {
   return (x == null) - (y == null) || (x ?? a.price) - (y ?? b.price);
 };
 
+// ---------- ТЕСТ: пошук за штрихкодом ----------
+// data/barcodes/NN.json (NN — дві останні цифри): штрихкод → [z<номер> | f<код>] — товари мереж zakaz.ua
+// і групи Fozzy (будує scraper/barcodes.js). АТБ і Грош штрихкодів не публікують: їхній товар — такий самий (peerOf).
+const isBarcode = (q) => MULTI_CHAIN && /^\d{8,14}$/.test(q.trim());
+async function lookupBarcode(q) {
+  const code = q.trim().replace(/^0+/, '');
+  const shard = await fetch(`data/barcodes/${code.slice(-2).padStart(2, '0')}.json`)
+    .then((r) => (r.ok ? r.json() : {}))
+    .catch(() => ({}));
+  const ids = [];
+  for (const ref of shard[code] || []) {
+    for (const [c, fam] of Object.entries(FAMILY)) if (fam === ref[0]) ids.push([c, ID_BASE[c] + Number(ref.slice(1))]);
+  }
+  await ensureChains(ids.map(([c]) => c));
+  const hits = [...new Set(ids.map(([, id]) => state.byId.get(id)).filter((p) => p && !p.from))];
+  // АТБ і Грош — такий самий товар (за назвою й фасовкою) будь-якої зі знайдених мереж.
+  if (hits.length) {
+    await ensureChains(['grosh']);
+    for (const c of ['atb', 'grosh']) {
+      if (!state.loaded.has(c)) continue;
+      const x = hits.map((h) => peerOf(h, c)).find(Boolean);
+      if (x && !hits.includes(x)) hits.unshift(x);
+    }
+  }
+  return hits;
+}
+
+// Сканер штрихкоду камерою: вбудований BarcodeDetector (Chrome, Android), інакше — бібліотека ZXing (Safari, iPhone).
+const SCAN_FORMATS = ['ean_13', 'ean_8', 'upc_a', 'upc_e'];
+async function openScanner() {
+  const box = document.createElement('div');
+  box.className = 'scanner';
+  box.innerHTML = `<div class="scanner__box"><div class="scanner__view"><video playsinline muted></video><div class="scanner__frame"></div></div>
+      <p class="scanner__note">Наведіть камеру на штрихкод товару</p><button type="button" class="btn scanner__close">Закрити</button></div>`;
+  document.body.append(box);
+  const video = box.querySelector('video');
+  let stream = null;
+  let stop = () => {};
+  const close = () => {
+    stop();
+    stream?.getTracks().forEach((t) => t.stop());
+    box.remove();
+  };
+  box.querySelector('.scanner__close').onclick = close;
+  const found = (code) => {
+    close();
+    $('#q').value = code;
+    $('#q').dispatchEvent(new Event('input'));
+  };
+  try {
+    if ('BarcodeDetector' in window && (await BarcodeDetector.getSupportedFormats()).includes('ean_13')) {
+      stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
+      video.srcObject = stream;
+      await video.play();
+      const det = new BarcodeDetector({ formats: SCAN_FORMATS });
+      let on = true;
+      stop = () => (on = false);
+      const tick = async () => {
+        if (!on) return;
+        const codes = await det.detect(video).catch(() => []);
+        if (codes[0]?.rawValue) return found(codes[0].rawValue);
+        setTimeout(tick, 200);
+      };
+      tick();
+    } else {
+      const { BrowserMultiFormatReader } = await import('https://cdn.jsdelivr.net/npm/@zxing/browser@0.1.5/+esm');
+      const controls = await new BrowserMultiFormatReader().decodeFromConstraints({ video: { facingMode: 'environment' } }, video, (res) => {
+        if (res) found(res.getText());
+      });
+      stop = () => controls.stop();
+    }
+  } catch (err) {
+    box.querySelector('.scanner__note').textContent = `Камера недоступна: ${err.message || err}. Можна ввести цифри штрихкоду в пошук.`;
+  }
+}
+
 function filtered() {
+  // Штрихкод у пошуку — товари з ним у мережах міста (знаходить lookupBarcode; фільтри й мережа не діють).
+  if (isBarcode(filters.q)) return state.barcode?.q === filters.q.trim() ? state.barcode.hits : [];
   const words = norm(filters.q).split(/\s+/).filter(Boolean);
   let list = state.products.filter(
     (p) =>
@@ -1103,6 +1250,7 @@ function card(p, from, extra = '') {
       ${cartBtn(p)}
     </div>
     <div class="card__body">
+      ${MULTI_CHAIN && chainOf(p) !== state.chain ? chainTag(p) : ''}
       <div class="card__name">${esc(p.name)}</div>
       <div class="card__price">
         <span class="price ${p.oldPrice ? 'price--sale' : ''}">${fmtPrice(p.price)} <small>₴/${esc(p.unit)}</small></span>
@@ -1756,14 +1904,28 @@ function initFilterPanel() {
 function renderList() {
   document.querySelector('.top').classList.remove('is-product', 'is-home');
   document.title = 'Жаба — історія цін';
+  const q = filters.q.trim();
+  if (isBarcode(q) && state.barcode?.q !== q) {
+    app.innerHTML = skeleton(4);
+    lookupBarcode(q).then((hits) => {
+      if (filters.q.trim() !== q) return;
+      state.barcode = { q, hits };
+      renderList();
+    });
+    return;
+  }
   const list = filtered();
   renderGroups();
   if (!list.length) {
-    const why = filters.inflated ? 'Акцій із завищеною «ціною до знижки» тут поки не виявлено' : 'Спробуйте іншу назву або приберіть фільтри';
+    const why = isBarcode(q)
+      ? `Товару зі штрихкодом ${esc(q)} у мережах міста ${esc(state.city.name)} не знайдено. АТБ і Грош штрихкодів не публікують — їхні товари знаходяться лише через такий самий товар інших мереж.`
+      : filters.inflated
+        ? 'Акцій із завищеною «ціною до знижки» тут поки не виявлено'
+        : 'Спробуйте іншу назву або приберіть фільтри';
     app.innerHTML = `${BETA ? '<a class="back" href="#/">← Головна</a>' : filters.q ? '' : todayBanner()}<div class="empty"><b>🔍</b>Нічого не знайдено<br><span class="note">${why}</span></div>`;
     return;
   }
-  let count = `Знайдено: ${list.length.toLocaleString('uk')}`;
+  let count = `${isBarcode(q) ? `За штрихкодом ${esc(q)}` : 'Знайдено'}: ${list.length.toLocaleString('uk')}`;
   const perUnitSort = PER_SORT[filters.sort];
   if (perUnitSort) {
     const n = list.filter((p) => perIn(p, perUnitSort) != null).length;
@@ -2214,13 +2376,19 @@ async function renderVs(el, p, other, onChange) {
 }
 
 // Інші мережі, з якими можна порівняти товар у цьому місті («Траш!» — лише акції, якщо він тут є).
-const otherChains = (p) => ['atb', 'silpo', 'thrash'].filter((c) => c !== chainOf(p) && (c === 'thrash' ? state.thrash.length : state.chains.includes(c)));
+const otherChains = (p) => Object.keys(CHAINS).filter((c) => c !== chainOf(p) && (c === 'thrash' ? state.thrash.length : state.chains.includes(c)));
 let vsTab = null; // остання відкрита вкладка — щоб на наступному товарі відкрилась та сама мережа
 // Порівняння з іншими мережами — один блок, мережа перемикається вкладками; на вкладці — різниця з тією мережею.
 // Згорнуто за замовчуванням (на вкладках і так видно різницю); розгорнутий стан запам'ятовуємо.
 const CHEVRON = '<svg class="vs-chev" viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>';
 function renderChainVs(el, p) {
   const others = otherChains(p);
+  // Товари інших мереж міста — догружаємо (перший раз — кілька секунд), потім малюємо.
+  if (others.some((c) => CITY_CHAINS.includes(c) && !state.loaded.has(c))) {
+    el.innerHTML = '<div class="panel__head"><h2>Порівняння з іншими мережами</h2></div><p class="note">Завантажуємо ціни інших мереж…</p>';
+    ensureChains(others).then(() => el.isConnected && renderChainVs(el, p));
+    return;
+  }
   let tab = others.includes(vsTab) ? vsTab : others.find((c) => peerOf(p, c)) || others[0];
   let open = store.get('vsOpen') === '1';
   const tabLabel = (c) => {
@@ -2269,8 +2437,6 @@ function renderChainVs(el, p) {
 
 // ---------- ТЕСТ: акції «Траш!» ----------
 // Артикул «Траш!» = код товару Сільпо, тож товар Сільпо знаходимо точно; товар АТБ — за назвою й фасовкою (autoMatch).
-const THRASH_ID_BASE = 20_000_000;
-const SILPO_ID_BASE = 10_000_000;
 // Такий самий товар іншої мережі: Сільпо ↔ «Траш!» — за кодом (артикул «Траш!» = код Сільпо), решта — за назвою
 // й фасовкою (autoMatch) у тому самому розділі. Пару, яку користувач вибрав чи вимкнув у «Порівнянні» на сторінці
 // товару (pairs), беремо як є. Пари рахуємо раз на місто (state.all змінюється з містом) — плиток сотні.
@@ -2313,8 +2479,7 @@ function peerOf(p, chain) {
   const key = `${chain}/${p.id}`;
   if (peers.has(key)) return peers.get(key);
   let best = null;
-  if (mine === 'silpo' && chain === 'thrash') best = state.byId.get(p.id - SILPO_ID_BASE + THRASH_ID_BASE) || null;
-  else if (mine === 'thrash' && chain === 'silpo') best = state.byId.get(p.id - THRASH_ID_BASE + SILPO_ID_BASE) || null;
+  if (FAMILY[mine] && FAMILY[mine] === FAMILY[chain]) best = state.byId.get(p.id - ID_BASE[mine] + ID_BASE[chain]) || null;
   else {
     let top = 0;
     for (const x of chain === 'thrash' ? state.thrash : state.all) {
@@ -2329,8 +2494,8 @@ function peerOf(p, chain) {
 // На плитці — ціна такого самого товару в інших мережах міста і на скільки там дорожче (+, червоним)
 // чи дешевше (−, зеленим), ніж у цій.
 function vsTileHtml(p) {
-  const lines = ['atb', 'silpo', 'thrash']
-    .filter((c) => c !== chainOf(p) && (c === 'thrash' ? state.thrash.length : state.chains.includes(c)))
+  const lines = Object.keys(CHAINS)
+    .filter((c) => c !== chainOf(p) && state.loaded.has(c))
     .map((chain) => [chain, peerOf(p, chain)])
     .filter(([, x]) => x)
     .map(([chain, x]) => {

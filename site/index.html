@@ -34,7 +34,7 @@
     <div class="wrap top__row">
       <a href="#/" class="logo" aria-label="Жаба — на головну"><img src="icon.svg" alt="" width="32" height="32"><span><b>Жаба</b><small>щоб жаба не душила</small></span></a>
       <div class="top__actions">
-        <select id="chainSel" class="chain-pick" aria-label="Мережа" hidden><option value="atb">АТБ</option><option value="silpo">Сільпо</option><option value="thrash">Траш!</option></select>
+        <select id="chainSel" class="chain-pick" aria-label="Мережа" hidden><option value="atb">АТБ</option><option value="silpo">Сільпо</option><option value="fora">Фора</option><option value="thrash">Траш!</option><option value="metro">Метро</option><option value="auchan">Ашан</option><option value="novus">Новус</option><option value="tavriav">Таврія В</option><option value="megamarket">МегаМаркет</option><option value="ekomarket">ЕкоМаркет</option><option value="grosh">Грош</option></select>
         <div class="city-pick">
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 22s7-6.2 7-12a7 7 0 1 0-14 0c0 5.8 7 12 7 12Z"/><circle cx="12" cy="10" r="2.5"/></svg>
           <select id="city" aria-label="Місто"></select>
@@ -53,6 +53,7 @@
       <label class="search">
         <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
         <input type="search" id="q" placeholder="Знайти товар або бренд" autocomplete="off" aria-label="Пошук товару">
+        <button type="button" id="scanBtn" class="scan-btn" hidden aria-label="Сканувати штрихкод" title="Сканувати штрихкод"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 7V5a2 2 0 0 1 2-2h2M17 3h2a2 2 0 0 1 2 2v2M21 17v2a2 2 0 0 1-2 2h-2M7 21H5a2 2 0 0 1-2-2v-2"/><path d="M7 8v8M10 8v8M13 8v8M16 8v8"/></svg></button>
       </label>
     </div>
     <div hidden>
