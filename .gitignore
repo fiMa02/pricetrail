@@ -4,6 +4,7 @@ daily.log
 # Будуються під час публікації (.github/workflows/deploy.yml)
 site/data/compare/
 site/data/cities/*/extra.json
+site/data/catalog.json
 site/data/chains/silpo/categories.json
 # ТЕСТ: нові мережі й покажчик штрихкодів збираються щодня, але до публікації (поки не готове місце на GitHub Pages
 # і сторінки тестової копії) лишаються лише на цьому комп'ютері. При публікації — прибрати ці рядки.

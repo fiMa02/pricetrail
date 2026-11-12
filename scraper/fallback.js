@@ -1,5 +1,6 @@
 // Спільний каталог: вибір міста впливає лише на ціни.
-// site/data/cities/<місто>/extra.json — товари, яких у цьому місті немає, з цінами міста, де вони є
+// site/data/cities/<місто>/extra.json — товари, яких у цьому місті немає (лише ціни; назви, фото тощо — у спільному
+// site/data/catalog.json), з цінами міста, де вони є
 // й відстежуються найдовше (з тих, що почали до TRACK_SLACK_DAYS пізніше, — найближчого по прямій); поле from — slug того міста. Свої products.json міст не змінюються.
 //
 //   node scraper/fallback.js — перебудувати з наявних products.json (парсер робить це сам після збору)
@@ -45,6 +46,10 @@ export async function buildFallback(dataDir) {
   const cities = CITIES.filter((c) => catalogs.has(c.slug));
   const all = new Set([...catalogs.values()].flatMap((m) => [...m.keys()]));
 
+  // Незмінні поля товару (назва, посилання, фото, розділ…) — однакові в усіх містах: пишемо їх раз, у data/catalog.json,
+  // а в extra.json міста — лише ціни й місто (from). Так 136 міст × ~5 тис. товарів займають ~40 МБ замість ~260 МБ.
+  const STATIC = ['name', 'url', 'img', 'unit', 'category', 'brand', 'group'];
+  const catalog = {};
   for (const city of cities) {
     const own = catalogs.get(city.slug);
     const nearest = cities.filter((c) => c !== city).sort((a, b) => distance(city, a) - distance(city, b));
@@ -63,8 +68,13 @@ export async function buildFallback(dataDir) {
       extra.push({ ...p, from: src.slug });
     }
     extra.sort((a, b) => a.name.localeCompare(b.name, 'uk'));
-    await fs.writeFile(path.join(dataDir, 'cities', city.slug, 'extra.json'), JSON.stringify(extra, dropNull));
+    const prices = extra.map((p) => {
+      if (!catalog[p.id]) catalog[p.id] = Object.fromEntries(STATIC.filter((k) => p[k] != null).map((k) => [k, p[k]]));
+      return Object.fromEntries(Object.entries(p).filter(([k]) => !STATIC.includes(k)));
+    });
+    await fs.writeFile(path.join(dataDir, 'cities', city.slug, 'extra.json'), JSON.stringify(prices, dropNull));
   }
+  await fs.writeFile(path.join(dataDir, 'catalog.json'), JSON.stringify(catalog, dropNull));
 }
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
