@@ -7,6 +7,7 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { CITIES } from './cities.js';
+import { dropNull } from './scrape.js';
 
 // Міста, де товар почали відстежувати не більше ніж на стільки днів пізніше, вважаємо рівними.
 const TRACK_SLACK_DAYS = 7;
@@ -62,7 +63,7 @@ export async function buildFallback(dataDir) {
       extra.push({ ...p, from: src.slug });
     }
     extra.sort((a, b) => a.name.localeCompare(b.name, 'uk'));
-    await fs.writeFile(path.join(dataDir, 'cities', city.slug, 'extra.json'), JSON.stringify(extra));
+    await fs.writeFile(path.join(dataDir, 'cities', city.slug, 'extra.json'), JSON.stringify(extra, dropNull));
   }
 }
 

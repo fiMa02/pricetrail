@@ -17,6 +17,37 @@ function Invoke-Step($name, [scriptblock]$cmd) {
     if ($LASTEXITCODE -ne 0) { throw "$name завершився з кодом $LASTEXITCODE" }
 }
 
+# Збирачі інших мереж (тестова копія) — паралельно з АТБ, вивід у файли .scratch\<назва>-daily.log;
+# збій не зриває публікацію цін АТБ. Start-Bg запускає, Wait-Bg чекає й повертає рядок для звіту.
+$bg = @{}
+function Start-Bg($name, $script) {
+    $log = Join-Path $root ".scratch\$name-daily.log"
+    New-Item -ItemType Directory -Force (Split-Path $log) | Out-Null
+    try {
+        $p = Start-Process node -ArgumentList $script -WorkingDirectory $root -NoNewWindow -PassThru -RedirectStandardOutput $log -RedirectStandardError "$log.err"
+        $null = $p.Handle
+        $bg[$name] = @{ proc = $p; log = $log }
+    } catch { $bg[$name] = @{ error = "$_" } }
+}
+function Wait-Bg($name, $title) {
+    $b = $bg[$name]
+    if (-not $b) { return $null }
+    if ($b.error) { return "${title}: ПОМИЛКА запуску ($($b.error))" }
+    Write-Host "== $title (йшло паралельно)"
+    $b.proc.WaitForExit()
+    $out = @(Get-Content $b.log -Encoding UTF8 -ErrorAction SilentlyContinue)
+    $out + @(Get-Content "$($b.log).err" -Encoding UTF8 -ErrorAction SilentlyContinue) | ForEach-Object { Write-Host $_ }
+    $n = @($out | Where-Object { $_ -match '\] \d+ товарів' }).Count
+    if ($b.proc.ExitCode -eq 0) { "${title}: зібрано магазинів $n" } else { "${title}: ЧАСТКОВО (код $($b.proc.ExitCode)), зібрано магазинів $n" }
+}
+function Invoke-Quiet($title, $script) {
+    Write-Host "== $title"
+    try {
+        $out = @(node $script | ForEach-Object { Write-Host $_; $_ })
+        if ($LASTEXITCODE -eq 0) { $out | Select-Object -Last 1 } else { "${title}: ПОМИЛКА (код $LASTEXITCODE)" }
+    } catch { "${title}: ПОМИЛКА ($_)" }
+}
+
 # Завдання будить комп'ютер зі сну: не даємо Windows приспати його знову, поки йде збір.
 Add-Type -Namespace Win32 -Name Power -MemberDefinition '[DllImport("kernel32.dll")] public static extern uint SetThreadExecutionState(uint esFlags);'
 $ES_CONTINUOUS = [uint32]'0x80000000'
@@ -103,6 +134,10 @@ try {
     } catch {
         $silpoNote = "Сільпо: ПОМИЛКА запуску ($_)"
     } }
+    # Інші мережі: zakaz.ua (Метро, Ашан, Новус, Таврія В, МегаМаркет, ЕкоМаркет; ≈2–3 год) — у ранньому запуску,
+    # Фора — у пізньому, разом із Сільпо.
+    if ($Part -ne 'late') { Start-Bg 'zakaz' 'scraper/zakaz.js' }
+    if ($full) { Start-Bg 'fora' 'scraper/fora.js' }
     Write-Host '== Збір цін'
     # Виводимо в журнал і водночас запам'ятовуємо — для звіту на робочому столі.
     $scrapeOut = @(npm run scrape @scrapeArgs | ForEach-Object { Write-Host $_; $_ })
@@ -125,6 +160,17 @@ try {
         $thrashNote = "Траш!: ПОМИЛКА ($_)"
     } }
     if ($thrashNote) { $silpoNote = "$silpoNote`r`n$thrashNote" }
+    $other = @()
+    $other += Wait-Bg 'zakaz' 'Мережі zakaz.ua'
+    $other += Wait-Bg 'fora' 'Фора'
+    if ($full) {
+        $other += Invoke-Quiet 'Грош' 'scraper/grosh.js'
+        # Штрихкоди: нові товари Сільпо (кілька хвилин) і покажчик для пошуку на сайті.
+        $other += Invoke-Quiet 'Штрихкоди Сільпо' 'scraper/silpo-barcodes.js'
+        $other += Invoke-Quiet 'Покажчик штрихкодів' 'scraper/barcodes.js'
+    }
+    $other = @($other | Where-Object { $_ })
+    if ($other.Count) { $silpoNote = (@($silpoNote) + $other | Where-Object { $_ }) -join "`r`n" }
     # Раз на тиждень (у неділю) — знімок рівня цін у всіх містах АТБ для мапи на головній (≈45 хв).
     # Його збій не зриває щоденну публікацію: на мапі лишається знімок минулого тижня.
     if ($full -and $started.DayOfWeek -eq [DayOfWeek]::Sunday) {
@@ -148,7 +194,9 @@ try {
     }
     # silpo-stores.json — запам'ятовані магазини Сільпо (новий з'являється, коли в місті вперше знайшовся магазин).
     # stores.json — запам'ятовані магазини АТБ (новий з'являється для щойно доданого міста).
-    Invoke-Step 'git add' { git add site/data scraper/silpo-stores.json scraper/stores.json }
+    # zakaz-ids.json — номери товарів zakaz.ua (з них id на сайті: губити не можна); *-stores.json — вибрані магазини мереж;
+    # silpo-barcodes.json — уже зібрані штрихкоди Сільпо (щоб не перезапитувати).
+    Invoke-Step 'git add' { git add site/data scraper/silpo-stores.json scraper/stores.json scraper/zakaz-ids.json scraper/zakaz-stores.json scraper/fora-stores.json scraper/silpo-barcodes.json }
     git diff --cached --quiet
     if ($LASTEXITCODE -ne 0) {
         Invoke-Step 'git commit' { git commit --quiet -m "Ціни за $(Get-Date -Format 'yyyy-MM-dd')$label" }
@@ -166,6 +214,7 @@ try {
 } finally {
     # Збір АТБ упав, а Сільпо ще йде — зупиняємо, щоб не лишився висіти після завершення завдання.
     if ($silpoProc -and -not $silpoProc.HasExited) { $silpoProc.Kill() }
+    foreach ($b in $bg.Values) { if ($b.proc -and -not $b.proc.HasExited) { $b.proc.Kill() } }
     if ($locked) { $lock.ReleaseMutex() }
     [Win32.Power]::SetThreadExecutionState($ES_CONTINUOUS) | Out-Null
     try { Write-StatusFile } catch { Write-Host "Не вдалося записати звіт: $_" }

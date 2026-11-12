@@ -24,6 +24,9 @@ const BASE = 'https://www.atbmarket.com';
 const DATA_DIR = path.resolve('site/data');
 const STORES_FILE = path.resolve('scraper/stores.json');
 const SHARDS = 100;
+// Порожні поля (null) у products.json/extra.json не пишемо: сайт і парсер читають відсутнє поле так само, а дані стають на ~20% меншими
+// (GitHub Pages обмежує сайт 1 ГБ).
+export const dropNull = (k, v) => (v === null ? undefined : v);
 const DELAY_MS = 700;
 const PARALLEL_CITIES = 5;
 const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0 Safari/537.36';
@@ -398,7 +401,7 @@ async function scrapeCity(city, store, categories, groupMap) {
   await writeChanges(dir, shards, products, today, oldList);
 
   const list = [...products.values(), ...out].sort((a, b) => a.name.localeCompare(b.name, 'uk'));
-  await fs.writeFile(path.join(dir, 'products.json'), JSON.stringify(list));
+  await fs.writeFile(path.join(dir, 'products.json'), JSON.stringify(list, dropNull));
   const cityMeta = { updated: today, updatedAt: new Date().toISOString(), productCount: products.size, outCount: out.length, store };
   await fs.writeFile(path.join(dir, 'meta.json'), JSON.stringify(cityMeta, null, 2));
   console.log(
