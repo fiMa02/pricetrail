@@ -3,6 +3,8 @@ const SHARDS = 100;
 const DAY = 86400000;
 
 const $ = (sel) => document.querySelector(sel);
+// Сортування живе над сіткою результатів (рядок «Знайдено»), тож з DOM воно то зникає, то повертається — тримаємо посилання.
+const sortEl = document.getElementById('sort');
 const app = $('#app');
 const state = { cities: [], chainCities: {}, chain: 'atb', city: null, chains: ['atb'], thrash: [], all: [], products: [], byId: new Map(), meta: null, shown: PAGE, shards: new Map() };
 
@@ -242,14 +244,14 @@ function setTheme(t) {
 // Сортування за ціною за кг / л / шт — лише коли цю ціну показуємо; інакше вибране сортування скидаємо.
 function applyPerSetting() {
   const on = showPer();
-  for (const o of $('#sort').options) {
+  for (const o of sortEl.options) {
     if (!o.value.startsWith('per-')) continue;
     o.hidden = !on;
     o.disabled = !on;
   }
   if (!on && filters.sort.startsWith('per-')) {
     filters.sort = 'name';
-    $('#sort').value = 'name';
+    sortEl.value = 'name';
     try {
       sessionStorage.setItem('filters', JSON.stringify(filters));
     } catch {}
@@ -979,7 +981,7 @@ function bindFilters() {
   if (matchMedia('(max-width: 520px)').matches) $('#q').placeholder = 'Пошук';
   $('#cat').value = filters.cat;
   applyPerSetting();
-  $('#sort').value = filters.sort;
+  sortEl.value = filters.sort;
   $('#sale').checked = filters.sale;
   $('#card').checked = filters.card;
   $('#inflated').checked = filters.inflated;
@@ -988,7 +990,7 @@ function bindFilters() {
   const update = () => {
     filters.q = $('#q').value;
     filters.cat = $('#cat').value;
-    filters.sort = $('#sort').value;
+    filters.sort = sortEl.value;
     filters.sale = $('#sale').checked;
     filters.card = $('#card').checked;
     filters.inflated = $('#inflated').checked;
@@ -1026,7 +1028,8 @@ function bindFilters() {
     clearTimeout(t);
     t = setTimeout(update, 150);
   });
-  for (const id of ['#cat', '#sort', '#sale', '#card', '#inflated', '#local']) $(id).addEventListener('change', update);
+  for (const id of ['#cat', '#sale', '#card', '#inflated', '#local']) $(id).addEventListener('change', update);
+  sortEl.addEventListener('change', update);
 }
 
 // Ціна за 1 кг / л / шт (вагові товари — за їхньою ціною); null, якщо для цієї одиниці невідома.
@@ -1759,9 +1762,10 @@ function renderList() {
     const n = list.filter((p) => perIn(p, perUnitSort) != null).length;
     count += ` · з ціною за 1 ${perUnitSort}: ${n.toLocaleString('uk')}`;
   }
-  app.innerHTML = `${BETA ? '<a class="back" href="#/">← Головна</a>' : filters.q ? '' : todayBanner()}<p class="count">${count}</p>
+  app.innerHTML = `${BETA ? '<a class="back" href="#/">← Головна</a>' : filters.q ? '' : todayBanner()}<div class="count-row"><p class="count">${count}</p><span id="sortSlot"></span></div>
     <div class="grid" id="grid">${list.slice(0, state.shown).map((p) => card(p)).join('')}</div>
     ${list.length > state.shown ? '<button class="more" id="more">Показати ще</button>' : ''}`;
+  $('#sortSlot').replaceWith(sortEl);
   placeAds($('#grid'));
   const more = $('#more');
   if (more) {
