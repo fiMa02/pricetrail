@@ -2702,6 +2702,7 @@ function renderChart(el, hist, days, unit) {
   let oldPath = ''; // «ціна до знижки» під час акцій
   let inflPath = ''; // те саме, коли її завищено
   let refPath = ''; // фактична звичайна ціна перед завищеною акцією
+  let salePath = ''; // ціна під час акції — поверх основної лінії червоним
   segs.forEach((s, i) => {
     const p = segs[i - 1];
     if (s.card) cardPath += `${p?.card && p.to === s.from ? `V${Y(s.card)}` : `M${X(s.from)},${Y(s.card)}`}H${X(s.to)}`;
@@ -2709,6 +2710,7 @@ function renderChart(el, hist, days, unit) {
     area += `M${X(s.from)},${Y(lo)}V${Y(s.price)}H${X(s.to)}V${Y(lo)}Z`;
     if (!s.old) return;
     bands += `<rect class="sale-band" x="${X(s.from)}" y="${m.t}" width="${X(s.to) - X(s.from)}" height="${H - m.t - m.b}"/>`;
+    salePath += `M${X(s.from)},${Y(s.price)}H${X(s.to)}`;
     if (s.inflated) {
       inflPath += `M${X(s.from)},${Y(s.ref)}V${Y(s.old)}H${X(s.to)}`;
       refPath += `M${X(s.from)},${Y(s.ref)}H${X(s.to)}`;
@@ -2729,6 +2731,7 @@ function renderChart(el, hist, days, unit) {
       ${bands}
       <path class="area" d="${area}"/>
       <path class="line" d="${path}"/>
+      <path class="sale-line" d="${salePath}"/>
       <path class="card-line" d="${cardPath}"/>
       <path class="old-line" d="${oldPath}"/>
       <path class="ref-line" d="${refPath}"/>
@@ -2741,7 +2744,7 @@ function renderChart(el, hist, days, unit) {
     <div class="legend">
       <span><i style="background:var(--chart-line)"></i>Ціна, грн/${esc(unit)}</span>
       ${cardPath ? `<span>${swatch('card-line')}З карткою АТБ</span>` : ''}
-      ${hasSale ? '<span><i style="background:var(--sale);opacity:.25"></i>Акція</span>' : ''}
+      ${hasSale ? '<span><i class="sale-swatch"></i>Акція</span>' : ''}
       ${oldPath ? `<span>${swatch('old-line')}Ціна до знижки</span>` : ''}
       ${hasInflated ? `<span>${swatch('old-line old-line--inflated')}⚠ Завищена ціна до знижки</span><span>${swatch('ref-line')}Ціна перед акцією</span>` : ''}
     </div>

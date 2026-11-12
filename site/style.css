@@ -7,16 +7,16 @@
   --ink-2: #474f5e;
   --muted: #8a92a3;
   --line: #e4e7ee;
-  --accent: #8a5a2b;
+  --accent: #a8743f;
   --accent-ink: #ffffff;
-  --accent-soft: #f5ece2;
+  --accent-soft: #f7efe5;
   --sale: #e5372b;
   --sale-soft: #ffebe9;
   --good: #14915a;
   --good-soft: #e3f6ec;
   --warn: #b26a00;
   --warn-soft: #fff3dc;
-  --chart-line: #8a5a2b;
+  --chart-line: #a8743f;
   --grid: #edf0f4;
   --map-mid: #b9bfca;
   --header: rgba(245, 246, 250, 0.82);
@@ -41,7 +41,7 @@
   --ink-2: #b6bdca;
   --muted: #7d8697;
   --line: #252c3a;
-  --accent: #d4a373;
+  --accent: #e3bd8f;
   --accent-ink: #0c0f14;
   --accent-soft: #34271b;
   --sale: #ff6b5e;
@@ -50,7 +50,7 @@
   --good-soft: #13301f;
   --warn: #f3a93f;
   --warn-soft: #33270f;
-  --chart-line: #d4a373;
+  --chart-line: #e3bd8f;
   --grid: #202634;
   --map-mid: #5d6577;
   --header: rgba(12, 15, 20, 0.78);
@@ -599,7 +599,10 @@ button:hover, .btn:hover { border-color: var(--accent); }
 .chart .card-line, .legend .card-line { fill: none; stroke: var(--good); stroke-width: 2; stroke-dasharray: 6 3; }
 .tip__card { color: var(--good); font-weight: 600; }
 .chart .area { fill: url(#areaGrad); }
-.chart .sale-band { fill: var(--sale); opacity: .09; }
+.chart .sale-band { fill: var(--sale); opacity: .16; }
+:root[data-theme=dark] .chart .sale-band { opacity: .2; }
+.chart .sale-line { fill: none; stroke: var(--sale); stroke-width: 3.5; stroke-linecap: round; }
+.legend .sale-swatch { background: color-mix(in oklab, var(--sale) 22%, transparent); box-shadow: inset 0 -3px 0 var(--sale); }
 .chart .cross { stroke: var(--muted); stroke-width: 1; stroke-dasharray: 3 3; }
 .chart .dot { fill: var(--chart-line); stroke: var(--surface); stroke-width: 3; }
 .chart .old-line, .legend .old-line { fill: none; stroke: var(--muted); stroke-width: 1.5; stroke-dasharray: 5 3; }
