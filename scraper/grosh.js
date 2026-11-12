@@ -3,15 +3,19 @@
 //
 //   node scraper/grosh.js
 //
-// Результат — як у Сільпо: site/data/chains/grosh/vinnytsia/… (див. chain-store.js).
+// Один каталог на всі міста, як у «Траш!»: site/data/chains/grosh/products.json, meta.json, changes.json, history/.
+// Окремих цін для інших міст інтернет-магазин не має, тож у Хмельницькому й Житомирі (там теж є магазини Грош)
+// показуємо ті самі ціни з позначкою, що вони — інтернет-магазину у Вінниці. Міста — site/data/chains/grosh/cities.json.
 // id товару = GROSH_ID_BASE + vendorCode (внутрішній код Грош). Штрихкодів API не віддає (поле barcode порожнє) —
 // до штрихкодів товари Грош прив'язуються лише через такий самий товар інших мереж (як АТБ).
-import { fetchJson, saveCatalog, writeCities, groupOf, sleep } from './chain-store.js';
+import fs from 'node:fs/promises';
+import path from 'node:path';
+import { fetchJson, saveCatalog, chainDir, groupOf, sleep } from './chain-store.js';
 
 const API = 'https://prod.salesbox.me/api/v5/companies/grosh';
 const GROSH_ID_BASE = 100_000_000;
-const CITY = 'vinnytsia';
-const STORE = { id: 'online.grosh.ua', address: 'інтернет-магазин (Вінниця)' };
+const CITIES = ['vinnytsia', 'khmelnytskyi', 'zhytomyr']; // наші міста, де є магазини Грош
+const STORE = { id: 'online.grosh.ua', address: 'ціни інтернет-магазину у Вінниці' };
 const PAGE = 100;
 const DELAY_MS = 400;
 
@@ -59,6 +63,6 @@ for (const leaf of leaves) {
     if (page >= (j.payload?.pagesCount || 1)) break;
   }
 }
-const changed = await saveCatalog('grosh', CITY, products, STORE);
-await writeCities('grosh');
-console.log(`[Грош, Вінниця] ${products.size} товарів, змін цін: ${changed}, ${Math.round((Date.now() - started) / 1000)} с`);
+const changed = await saveCatalog('grosh', null, products, STORE);
+await fs.writeFile(path.join(chainDir('grosh'), 'cities.json'), JSON.stringify(CITIES.map((slug) => ({ slug }))));
+console.log(`[Грош] ${products.size} товарів, змін цін: ${changed}, ${Math.round((Date.now() - started) / 1000)} с`);

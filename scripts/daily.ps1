@@ -121,7 +121,8 @@ try {
         try { Invoke-WebRequest -Uri 'https://github.com' -Method Head -UseBasicParsing -TimeoutSec 5 | Out-Null; break }
         catch { Start-Sleep -Seconds 5 }
     }
-    Invoke-Step 'git pull' { git pull --rebase --quiet }
+    # --autostash: якщо щось лишилось незакоміченим (напр. ручний збір удень) — не зупиняємось, а відкладаємо й повертаємо.
+    Invoke-Step 'git pull' { git pull --rebase --autostash --quiet }
     Invoke-Step 'npm ci' { npm ci --silent }
     # Сільпо (для тестової копії сайту, /test/) збираємо паралельно з АТБ: різні сайти й різні теки даних.
     # Його вивід — у файли, у журнал дописуємо після АТБ. Збій Сільпо не зриває публікацію цін АТБ.

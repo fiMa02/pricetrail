@@ -40,6 +40,10 @@ async function scrapeStore(city, store) {
       const top = cats.find((c) => !c.parentId)?.name;
       const sub = cats.find((c) => c.parentId && cats.some((t) => !t.parentId && t.id === c.parentId))?.name;
       const weighted = x.isWeightedProduct;
+      // У вагових товарів ціна — за вагу з unit: «кг» або «100г» (цукерки, сир…). Переводимо в ціну за 1 кг.
+      const g = weighted && /^(\d+(?:[.,]\d+)?)\s*(г|кг)$/i.exec((x.unit || '').trim());
+      const perKg = g ? 1000 / (parseFloat(g[1].replace(',', '.')) * (g[2].toLowerCase() === 'кг' ? 1000 : 1)) : 1;
+      const kg = (v) => Math.round(v * perKg * 100) / 100;
       // Вага/об'єм — в unit («900г»); дописуємо до назви, щоб рахувати ціну за кг/л.
       const size = !weighted && /\d/.test(x.unit || '') ? ` ${x.unit}` : '';
       products.set(id, {
@@ -48,8 +52,8 @@ async function scrapeStore(city, store) {
         name: `${x.name.trim()}${size}`,
         url: `/product/${x.slug}`,
         img: x.mainImage || null,
-        price: x.price,
-        oldPrice: x.oldPrice && x.oldPrice > x.price ? x.oldPrice : null,
+        price: kg(x.price),
+        oldPrice: x.oldPrice && x.oldPrice > x.price ? kg(x.oldPrice) : null,
         unit: weighted ? 'кг' : 'шт',
         category: sub || top || null,
         group: groupOf(top, sub),

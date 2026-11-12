@@ -34,6 +34,24 @@ export async function fetchJson(url, init = {}, attempt = 1) {
   }
 }
 
+// Стислий запис товару в products.json (GitHub Pages обмежує сайт 1 ГБ): без поля chain (мережа — за діапазоном id)
+// і без спільних початків адрес фото й посилань — сайт дописує їх сам (EXPAND у site/app.js; префікси — ті самі).
+export const PREFIX = {
+  img: { fora: 'https://content.fora.ua/sku/ecommerce/', grosh: 'https://d3og57k1dk4307.cloudfront.net/grosh/', zakaz: 'https://img2.zakaz.ua/' },
+  url: { fora: '/product/', zakaz: '/uk/products/' },
+};
+const ZAKAZ = new Set(['metro', 'auchan', 'novus', 'tavriav', 'megamarket', 'ekomarket']);
+export function compact(p) {
+  const key = ZAKAZ.has(p.chain) ? 'zakaz' : p.chain;
+  const q = { ...p };
+  delete q.chain;
+  const img = PREFIX.img[key];
+  if (img && q.img) q.img = q.img.replace(/^https:\/\/img\d\.zakaz\.ua\//, 'https://img2.zakaz.ua/').replace(img, '');
+  const url = PREFIX.url[key];
+  if (url && q.url?.startsWith(url)) q.url = q.url.slice(url.length);
+  return q;
+}
+
 // products — Map id → { id, chain, name, url, img, price, oldPrice?, unit, category, brand, group }.
 // Пише історію (запис ціни на сьогодні), зміни за день, products.json і meta.json. Повертає кількість змін цін.
 export async function saveCatalog(chain, slug, products, store) {
@@ -53,7 +71,7 @@ export async function saveCatalog(chain, slug, products, store) {
   for (let i = 0; i < SHARDS; i++) await fs.writeFile(shardFile(i), JSON.stringify(shards[i]));
   await writeChanges(dir, shards, products, today, await readJson(path.join(dir, 'products.json'), []));
   const list = [...products.values()].sort((a, b) => a.name.localeCompare(b.name, 'uk'));
-  await fs.writeFile(path.join(dir, 'products.json'), JSON.stringify(list));
+  await fs.writeFile(path.join(dir, 'products.json'), JSON.stringify(list.map(compact)));
   const meta = { updated: today, updatedAt: new Date().toISOString(), productCount: list.length, store };
   await fs.writeFile(path.join(dir, 'meta.json'), JSON.stringify(meta, null, 2));
   return changed;

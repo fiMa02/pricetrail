@@ -13,15 +13,16 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { CITIES } from './cities.js';
 import { fetchJson, saveCatalog, writeCities, groupOf, readJson, sleep } from './chain-store.js';
+import { ZAKAZ_BASES as B } from './zakaz-bases.js';
 
 const API = 'https://stores-api.zakaz.ua';
 export const ZAKAZ_CHAINS = {
-  metro: { base: 30_000_000, title: 'Метро' },
-  auchan: { base: 40_000_000, title: 'Ашан' },
-  novus: { base: 50_000_000, title: 'Новус' },
-  tavriav: { base: 60_000_000, title: 'Таврія В' },
-  megamarket: { base: 70_000_000, title: 'МегаМаркет' },
-  ekomarket: { base: 80_000_000, title: 'ЕкоМаркет' },
+  metro: { base: B.metro, title: 'Метро' },
+  auchan: { base: B.auchan, title: 'Ашан' },
+  novus: { base: B.novus, title: 'Новус' },
+  tavriav: { base: B.tavriav, title: 'Таврія В' },
+  megamarket: { base: B.megamarket, title: 'МегаМаркет' },
+  ekomarket: { base: B.ekomarket, title: 'ЕкоМаркет' },
 };
 // Міста zakaz.ua → наші.
 const CITY_OF = {
