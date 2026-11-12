@@ -122,7 +122,7 @@ function perUnit(p) {
 // Ціна за кг / л / шт — лише якщо її ввімкнено в налаштуваннях (типово вимкнено).
 const showPer = () => store.get('per') === '1';
 // Порівняння з іншими мережами на плитках — теж лише якщо ввімкнено (типово вимкнено).
-const showTileVs = () => store.get('tileVs') === '1';
+const showTileVs = () => MULTI_CHAIN && store.get('tileVs') === '1';
 const perHtml = (p, cls = 'per') => (p._per && showPer() ? `<span class="${cls}">${fmtPrice(p._per.price)} ₴/${p._per.unit}</span>` : '');
 
 // ---------- Дані ----------
@@ -147,13 +147,16 @@ const cityDir = () => `data/cities/${state.city.slug}`;
 // Каталоги інших мереж (поки Сільпо — один магазин у Хмельницькому) лежать у data/chains/<мережа>/<місто>/
 // у форматі АТБ, з полем chain; будує scraper/silpo.js. Товари АТБ поля chain не мають.
 // «Траш!» — лише акції, одні на всю мережу: data/chains/thrash/ без міст (будує scraper/thrash.js).
+// Інші мережі (Сільпо, «Траш!») і порівняння з ними — поки лише в тестовій копії (/test/). Основний сайт — тільки АТБ;
+// код той самий, тож зміни переносяться з тесту на основний простим копіюванням файлів.
+const MULTI_CHAIN = /\/test\//.test(location.pathname);
 const CHAINS = { atb: 'АТБ', silpo: 'Сільпо', thrash: 'Траш!' };
 const CHAIN_SITE = { atb: ['https://www.atbmarket.com', 'atbmarket.com'], silpo: ['https://silpo.ua', 'silpo.ua'], thrash: ['https://thrash.ua', 'thrash.ua'] };
 const chainOf = (p) => p.chain || 'atb';
 const chainDir = (chain, slug = state.city.slug) =>
   chain === 'atb' ? `data/cities/${slug}` : chain === 'thrash' ? 'data/chains/thrash' : `data/chains/${chain}/${slug}`;
 // Позначка мережі (на сторінці товару й у порівнянні).
-const chainTag = (p) => `<span class="chain chain--${chainOf(p)}">${CHAINS[chainOf(p)]}</span>`;
+const chainTag = (p) => (MULTI_CHAIN ? `<span class="chain chain--${chainOf(p)}">${CHAINS[chainOf(p)]}</span>` : '');
 
 // Мережа вибирається в шапці (state.chain): від неї залежать список міст, товари в пошуку й на головній.
 // Міста мережі — data/chains/<мережа>/cities.json: [{ slug, address }] (адреса магазину цієї мережі);
@@ -170,16 +173,20 @@ const nearestCity = (list, c) => list.reduce((a, b) => (Math.hypot(b.lat - c.lat
 
 async function loadCities() {
   state.cities = await fetch('data/cities.json').then((r) => r.json());
-  const silpo = await fetch('data/chains/silpo/cities.json')
-    .then((r) => (r.ok ? r.json() : []))
-    .catch(() => []);
+  const silpo = MULTI_CHAIN
+    ? await fetch('data/chains/silpo/cities.json')
+        .then((r) => (r.ok ? r.json() : []))
+        .catch(() => [])
+    : [];
   state.chainCities = { atb: state.cities };
   const silpoCities = silpo.map((x) => state.cities.find((c) => c.slug === x.slug) && { ...state.cities.find((c) => c.slug === x.slug), address: x.address }).filter(Boolean);
   if (silpoCities.length) state.chainCities.silpo = silpoCities;
   // «Траш!» — лише акції, однакові в усіх його магазинах; міста — наші, де він є (адреси магазину немає).
-  const thrash = await fetch('data/chains/thrash/cities.json')
-    .then((r) => (r.ok ? r.json() : []))
-    .catch(() => []);
+  const thrash = MULTI_CHAIN
+    ? await fetch('data/chains/thrash/cities.json')
+        .then((r) => (r.ok ? r.json() : []))
+        .catch(() => [])
+    : [];
   const thrashCities = state.cities.filter((c) => thrash.some((x) => x.slug === c.slug));
   if (thrashCities.length) state.chainCities.thrash = thrashCities;
   state.chain = state.chainCities[store.get('chain')] ? store.get('chain') : 'atb';
@@ -277,7 +284,7 @@ function renderSettings() {
         <div><b>Ціна за кг / л / шт</b><span class="note">На плитках і сторінці товару, а також сортування «Дешевші за 1 кг / л / шт».</span></div>
         ${seg('per', { off: ['Не показувати'], on: ['Показувати'] }, showPer() ? 'on' : 'off')}
       </div>
-      <div class="settings-row">
+      <div class="settings-row"${MULTI_CHAIN ? '' : ' hidden'}>
         <div><b>Порівняння на плитках</b><span class="note">Ціна такого самого товару в інших мережах міста під кожною плиткою.</span></div>
         ${seg('tileVs', { off: ['Не показувати'], on: ['Показувати'] }, showTileVs() ? 'on' : 'off')}
       </div>
@@ -396,8 +403,8 @@ async function loadData() {
     fetch(`${cityDir()}/products.json`).then((r) => r.json()),
     optional(`${cityDir()}/extra.json`, []),
     fetch(`${cityDir()}/meta.json`).then((r) => r.json()),
-    optional(`${chainDir('silpo')}/products.json`, []),
-    optional(`${chainDir('silpo')}/meta.json`, null),
+    state.chainCities.silpo ? optional(`${chainDir('silpo')}/products.json`, []) : [],
+    state.chainCities.silpo ? optional(`${chainDir('silpo')}/meta.json`, null) : null,
   ]);
   // Акції «Траш!» — якщо в місті є його магазини. До state.chains (порівняння каталогів) не входять: це лише акції.
   const hasThrash = state.chainCities.thrash?.some((c) => c.slug === state.city.slug);
@@ -1248,7 +1255,7 @@ const loadWeek = (date) => {
 // ТЕСТ: рівень цін у містах для Сільпо (будує scraper/silpo-snapshot.js).
 let silpoLevels;
 const loadSilpoLevels = () =>
-  (silpoLevels ||= fetch('data/chains/silpo/levels.json')
+  !MULTI_CHAIN ? Promise.resolve(null) : (silpoLevels ||= fetch('data/chains/silpo/levels.json')
     .then((r) => (r.ok ? r.json() : null))
     .catch(() => null));
 
