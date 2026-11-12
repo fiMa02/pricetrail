@@ -338,5 +338,345 @@
     "id": 965,
     "address": "вул. Героїв АТО, 4 а",
     "cityId": 981
+  },
+  "uman": {
+    "id": 612,
+    "address": "вул. Тищика, 6 а",
+    "cityId": 573
+  },
+  "korsun-shevchenkivskyi": {
+    "id": 320,
+    "address": "вул. Ярослава Мудрого, 59",
+    "cityId": 607
+  },
+  "zhashkiv": {
+    "id": 1316,
+    "address": "вул. Миру, 7",
+    "cityId": 721
+  },
+  "shpola": {
+    "id": 522,
+    "address": "вул. Лозуватська, 56",
+    "cityId": 787
+  },
+  "pryluky": {
+    "id": 511,
+    "address": "вул. Київська, 291",
+    "cityId": 775
+  },
+  "nizhyn": {
+    "id": 525,
+    "address": "вул. Шевченка, 120/3",
+    "cityId": 795
+  },
+  "novhorod-siverskyi": {
+    "id": 510,
+    "address": "вул. Захисників України, буд. 1",
+    "cityId": 771
+  },
+  "novodnistrovsk": {
+    "id": 1443,
+    "address": "мкрн. Діброва, буд. 25, прим. 2б",
+    "cityId": 1953
+  },
+  "sokyriany": {
+    "id": 1625,
+    "address": "вулиця Ольги Кобилянської, 23",
+    "cityId": 2069
+  },
+  "berehomet": {
+    "id": 1581,
+    "address": "вул. Центральна, буд. 171 Е",
+    "cityId": 2041
+  },
+  "nikopol": {
+    "id": 27,
+    "address": "вул. Героїв Чорнобиля, 100 а",
+    "cityId": 379
+  },
+  "pavlohrad": {
+    "id": 400,
+    "address": "вул. Героїв України, 4 а",
+    "cityId": 385
+  },
+  "mezhova": {
+    "id": 453,
+    "address": "просп. Незалежності, буд. 14, прим. 1",
+    "cityId": 707
+  },
+  "kalynivka": {
+    "id": 1213,
+    "address": "вул. Незалежності, 7, прим. 52, прим. 54",
+    "cityId": 387
+  },
+  "bolekhiv": {
+    "id": 1330,
+    "address": "пл. Івана Франка, буд. 1 А",
+    "cityId": 743
+  },
+  "kolomyia": {
+    "id": 1003,
+    "address": "вул. Гетьмана Івана Мазепи, буд. 183/2",
+    "cityId": 971
+  },
+  "kalush": {
+    "id": 1211,
+    "address": "вул. Грушевського, 99 а",
+    "cityId": 945
+  },
+  "rohatyn": {
+    "id": 1000,
+    "address": "вул. Галицька, 92",
+    "cityId": 999
+  },
+  "lozova": {
+    "id": 255,
+    "address": "вул. Європейська, буд. 2/1",
+    "cityId": 513
+  },
+  "berestyn": {
+    "id": 223,
+    "address": "вул. Полтавська, буд. 91 г",
+    "cityId": 2015
+  },
+  "balakliia": {
+    "id": 243,
+    "address": "вул. Володимира Целуйка, буд. 28",
+    "cityId": 547
+  },
+  "kamianets-podilskyi": {
+    "id": 1639,
+    "address": "вул. Франка Івана, 40-Д, приміщення 1, 3",
+    "cityId": 641
+  },
+  "shepetivka": {
+    "id": 1605,
+    "address": "вул. Захисників України, 85К, приміщ. (гр.приміщ.) 101",
+    "cityId": 617
+  },
+  "letychiv": {
+    "id": 1745,
+    "address": "вул Юрія Савіцькго, буд. 31-Б",
+    "cityId": 2129
+  },
+  "oleksandriia": {
+    "id": 1517,
+    "address": "вул. Мазепи Гетьмана, буд. 19",
+    "cityId": 483
+  },
+  "svitlovodsk": {
+    "id": 1021,
+    "address": "вул. Б. Хмельницького, 34",
+    "cityId": 895
+  },
+  "dolynska": {
+    "id": 220,
+    "address": "вул. Чкалова, 2",
+    "cityId": 531
+  },
+  "slavutych": {
+    "id": 1259,
+    "address": "вул. Привокзальна, 7",
+    "cityId": 575
+  },
+  "iahotyn": {
+    "id": 1221,
+    "address": "вул. Вокзальна, 9",
+    "cityId": 819
+  },
+  "ivankiv": {
+    "id": 1569,
+    "address": "вул. Київська, 29",
+    "cityId": 2115
+  },
+  "sheptytskyi": {
+    "id": 853,
+    "address": "вул. Сокальська, 11",
+    "cityId": 925
+  },
+  "sambir": {
+    "id": 945,
+    "address": "площа Ринок, 15",
+    "cityId": 977
+  },
+  "stryi": {
+    "id": 669,
+    "address": "вул. Шевченка Т., 72",
+    "cityId": 769
+  },
+  "drohobych": {
+    "id": 1193,
+    "address": "вул. Лесі Українки, 14 а",
+    "cityId": 919
+  },
+  "pervomaisk": {
+    "id": 1240,
+    "address": "вул. Михайла Грушевського, 33а",
+    "cityId": 445
+  },
+  "voznesensk": {
+    "id": 217,
+    "address": "вул. Будівельників, 7",
+    "cityId": 507
+  },
+  "koblevo": {
+    "id": 1017,
+    "address": "вул. Одеська, 2/2",
+    "cityId": 1007
+  },
+  "izmail": {
+    "id": 826,
+    "address": "просп. Незалежності, 54 а",
+    "cityId": 931
+  },
+  "bilhorod-dnistrovskyi": {
+    "id": 724,
+    "address": "вул. Ізмаїльська, 131",
+    "cityId": 897
+  },
+  "rozdilna": {
+    "id": 810,
+    "address": "пл. Привокзальна, 6",
+    "cityId": 927
+  },
+  "reni": {
+    "id": 889,
+    "address": "вул. Вознесенська, 171/1",
+    "cityId": 951
+  },
+  "lubny": {
+    "id": 266,
+    "address": "вул. Монастирська, 71 а",
+    "cityId": 561
+  },
+  "myrhorod": {
+    "id": 1587,
+    "address": "вул. Гоголя, буд. 56",
+    "cityId": 881
+  },
+  "varash": {
+    "id": 908,
+    "address": "мкрн. Будівельників, 49",
+    "cityId": 965
+  },
+  "dubno": {
+    "id": 1155,
+    "address": "вул. Д. Галицького, 9",
+    "cityId": 517
+  },
+  "korets": {
+    "id": 1278,
+    "address": "Площа Київська, буд. 3",
+    "cityId": 629
+  },
+  "rokytne": {
+    "id": 750,
+    "address": "вул. Травнева, буд. 3 А",
+    "cityId": 905
+  },
+  "shostka": {
+    "id": 1033,
+    "address": "вул. Свободи, 30",
+    "cityId": 539
+  },
+  "okhtyrka": {
+    "id": 825,
+    "address": "вул. Армійська, 89 б",
+    "cityId": 671
+  },
+  "konotop": {
+    "id": 318,
+    "address": "просп. Миру, 79",
+    "cityId": 555
+  },
+  "kremenets": {
+    "id": 1109,
+    "address": "вул. Петлюри С., 4 Б",
+    "cityId": 1055
+  },
+  "berezhany": {
+    "id": 1603,
+    "address": "вул. Тернопільська, буд. 19 К",
+    "cityId": 2057
+  },
+  "chortkiv": {
+    "id": 1681,
+    "address": "вулиця Шевченка Тараса, 19 гр. нежитл. прим. 1-28/101-1/109/119/120-121/12",
+    "cityId": 1081
+  },
+  "iampil": {
+    "id": 449,
+    "address": "вул. Соборна, 23/Замкова, 14",
+    "cityId": 705
+  },
+  "pohrebyshche": {
+    "id": 1633,
+    "address": "вул. Богдана Хмельницького, буд. 87",
+    "cityId": 2075
+  },
+  "trostianets": {
+    "id": 1411,
+    "address": "вул. Соборна, буд. 50",
+    "cityId": 1551
+  },
+  "khmilnyk": {
+    "id": 921,
+    "address": "вул. Соборності, 6 а",
+    "cityId": 975
+  },
+  "novovolynsk": {
+    "id": 928,
+    "address": "15-ий Мікрорайон, 19",
+    "cityId": 947
+  },
+  "kovel": {
+    "id": 1172,
+    "address": "вул. Заводська, 16",
+    "cityId": 979
+  },
+  "manevychi": {
+    "id": 1341,
+    "address": "вул. Луцька, буд. 11-А",
+    "cityId": 747
+  },
+  "vynohradiv": {
+    "id": 1735,
+    "address": "вул. І. Франка, 127",
+    "cityId": 417
+  },
+  "mukacheve": {
+    "id": 1129,
+    "address": "вул. Купальна, 14",
+    "cityId": 739
+  },
+  "tiachiv": {
+    "id": 1693,
+    "address": "вул. Івана Франка, буд. 2",
+    "cityId": 1079
+  },
+  "berehove": {
+    "id": 1084,
+    "address": "вул. Мужайська, 54-а",
+    "cityId": 1041
+  },
+  "novooleksandrivka": {
+    "id": 439,
+    "address": "вул. Телевізійна, 40",
+    "cityId": 697
+  },
+  "zviahel": {
+    "id": 1029,
+    "address": "вул. Житомирська, 112",
+    "cityId": 867
+  },
+  "berdychiv": {
+    "id": 1563,
+    "address": "вул. Житомирська, буд. 99-А",
+    "cityId": 693
+  },
+  "korosten": {
+    "id": 556,
+    "address": "вул. Героїв Чорнобиля, буд. 2",
+    "cityId": 777
   }
 }
