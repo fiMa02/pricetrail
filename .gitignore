@@ -6,14 +6,3 @@ site/data/compare/
 site/data/cities/*/extra.json
 site/data/catalog.json
 site/data/chains/silpo/categories.json
-# ТЕСТ: нові мережі й покажчик штрихкодів збираються щодня, але до публікації (поки не готове місце на GitHub Pages
-# і сторінки тестової копії) лишаються лише на цьому комп'ютері. При публікації — прибрати ці рядки.
-site/data/chains/fora/
-site/data/chains/metro/
-site/data/chains/auchan/
-site/data/chains/novus/
-site/data/chains/tavriav/
-site/data/chains/megamarket/
-site/data/chains/ekomarket/
-site/data/chains/grosh/
-site/data/barcodes/
