@@ -298,6 +298,8 @@ const STORE_NOTE = {
   thrash: 'Лише акції — однакові в усіх магазинах мережі',
   grosh: 'Ціни інтернет-магазину у Вінниці',
 };
+// Позначка на картці магазину (за замовчуванням — дві перші літери назви).
+const STORE_MARK = { megamarket: 'ММ', ekomarket: 'ЕМ', tavriav: 'ТВ' };
 const PIN = '<path d="M12 22s7-6.2 7-12a7 7 0 1 0-14 0c0 5.8 7 12 7 12Z"/><circle cx="12" cy="10" r="2.5"/>';
 function placeHtml() {
   const slug = state.city.slug;
@@ -306,7 +308,7 @@ function placeHtml() {
       const here = state.chainCities[c].find((x) => x.slug === slug);
       const sub = STORE_NOTE[c] || here.address || '';
       return `<button type="button" class="store-card" data-chain="${c}" aria-pressed="${c === state.chain}">
-          <span class="store-card__mark chain--${c}" aria-hidden="true">${esc(CHAINS[c].replace(/[^\p{L}]/gu, '').slice(0, 2))}</span>
+          <span class="store-card__mark chain--${c}" aria-hidden="true">${esc(STORE_MARK[c] || CHAINS[c].replace(/[^\p{L}]/gu, '').slice(0, 2))}</span>
           <span class="store-card__text"><b>${esc(CHAINS[c])}</b>${sub ? `<small>${esc(sub)}</small>` : ''}</span>
           <svg class="store-card__check" viewBox="0 0 24 24" aria-hidden="true"><path d="m5 12.5 4.5 4.5L19 7.5"/></svg>
         </button>`;
