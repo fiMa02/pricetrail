@@ -1819,9 +1819,10 @@ function renderHome() {
     return;
   }
   const stale = d.date !== state.meta.updated ? ` (останній збір у цьому місті — ${fmtDate(parseDate(state.meta.updated))})` : '';
+  const changesLink = `<a class="home-all" href="#/today">Усі зміни <b>${tabs.reduce((n, t) => n + t[2].length, 0).toLocaleString('uk')}</b> →</a>`;
   app.innerHTML = `${map}
     <div class="home-head"><div><h1 class="page-title">Що змінилося ${fmtDate(parseDate(d.date), false)}</h1>
-      <p class="note today-sub">${esc(state.city.name)}: зміни порівняно з попереднім днем${stale}.</p></div>${all}</div>
+      <p class="note today-sub">${esc(state.city.name)}: зміни порівняно з попереднім днем${stale}.</p></div>${changesLink}</div>
     ${tabs
       .map(
         ([k, label, list]) => `<section class="home-block">
