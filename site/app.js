@@ -394,7 +394,10 @@ function renderSettings(keepScroll = false) {
     const b = e.target.closest('[data-set]');
     if (!b) return;
     if (b.dataset.set === 'theme') setTheme(b.dataset.v);
-    if (b.dataset.set === 'tileVs') store.set('tileVs', b.dataset.v === 'on' ? '1' : '0');
+    if (b.dataset.set === 'tileVs') {
+      store.set('tileVs', b.dataset.v === 'on' ? '1' : '0');
+      loadTileVs();
+    }
     if (b.dataset.set === 'per') {
       store.set('per', b.dataset.v === 'on' ? '1' : '0');
       applyPerSetting();
@@ -520,6 +523,24 @@ async function loadData() {
   fillCategories();
   syncFavs();
   syncCart();
+  loadTileVs();
+}
+
+// «Порівняння на плитках»: одразу є лише Сільпо й вибрана мережа, решту мереж міста довантажуємо у фоні
+// й дописуємо їхні рядки під уже показаними плитками.
+function loadTileVs() {
+  if (!MULTI_CHAIN || !showTileVs()) return;
+  const slug = state.city.slug;
+  ensureChains(state.chains).then(() => {
+    if (state.city.slug !== slug) return;
+    for (const a of app.querySelectorAll('a.card[href^="#/p/"]')) {
+      const p = state.byId.get(Number(a.getAttribute('href').slice(4)));
+      const body = a.querySelector('.card__body');
+      if (!p || p._view || p.from || !body) continue;
+      body.querySelector('.card__vs')?.remove();
+      body.insertAdjacentHTML('beforeend', vsTileHtml(p));
+    }
+  });
 }
 
 // Підкатегорії лише вибраного розділу.
@@ -2598,6 +2619,20 @@ function setPair(p, chain, id) {
   if (id) pairs[pairKey(id, mine)] = p.id;
   store.set('pairs', JSON.stringify(pairs));
 }
+// Товари мережі chain у місті (без цін з інших міст) — для пошуку такого самого товару; оновлюються, коли
+// state.all змінюється (інше місто, довантажені мережі).
+let itemsFor = null;
+let itemsLen = 0;
+let items = new Map();
+function chainItems(chain) {
+  if (itemsFor !== state.all || itemsLen !== state.all.length) {
+    itemsFor = state.all;
+    itemsLen = state.all.length;
+    items = new Map();
+  }
+  if (!items.has(chain)) items.set(chain, (chain === 'thrash' ? state.thrash : state.all).filter((x) => chainOf(x) === chain && !x.from));
+  return items.get(chain);
+}
 function peerOf(p, chain) {
   const mine = chainOf(p);
   if (chain === mine) return null;
@@ -2615,7 +2650,7 @@ function peerOf(p, chain) {
   if (peers.has(key)) return peers.get(key);
   let best = null;
   if (FAMILY[mine] && FAMILY[mine] === FAMILY[chain]) best = state.byId.get(p.id - ID_BASE[mine] + ID_BASE[chain]) || null;
-  else best = bestMatch(p, (chain === 'thrash' ? state.thrash : state.all).filter((x) => chainOf(x) === chain && !x.from));
+  else best = bestMatch(p, chainItems(chain));
   peers.set(key, best);
   return best;
 }
