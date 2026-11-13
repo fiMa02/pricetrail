@@ -429,9 +429,9 @@ const chainCatalog = (c) =>
   (chainCatalogs[c] ||= fetch(`data/chains/${c}/catalog.json`)
     .then((r) => (r.ok ? r.json() : {}))
     .catch(() => ({})));
-async function chainProducts(c) {
+async function chainProducts(c, slug = state.city.slug) {
   const [list, cat] = await Promise.all([
-    fetch(`${chainDir(c)}/products.json`)
+    fetch(`${chainDir(c, slug)}/products.json`)
       .then((r) => (r.ok ? r.json() : []))
       .catch(() => []),
     NATIONAL.has(c) ? {} : chainCatalog(c),
@@ -444,7 +444,7 @@ async function ensureChains(chains) {
   const need = [...new Set(chains)].filter((c) => CITY_CHAINS.includes(c) && state.chains.includes(c) && !state.loaded.has(c));
   if (!need.length) return;
   const slug = state.city.slug;
-  const lists = await Promise.all(need.map(chainProducts));
+  const lists = await Promise.all(need.map((c) => chainProducts(c)));
   if (state.city.slug !== slug) return;
   need.forEach((c, i) => {
     if (state.loaded.has(c)) return;
@@ -488,7 +488,7 @@ async function loadData() {
     optional(`${cityDir()}/extra.json`, []),
     fetch(`${cityDir()}/meta.json`).then((r) => r.json()),
     CITY_CHAINS.includes(state.chain) ? optional(`${chainDir(state.chain)}/meta.json`, null) : null,
-    ...eager.map(chainProducts),
+    ...eager.map((c) => chainProducts(c)),
   ]);
   await withCatalog(extra);
   // Акції «Траш!» — якщо в місті є його магазини. До state.chains (порівняння каталогів) не входять: це лише акції.
@@ -2133,17 +2133,21 @@ function labelsHtml(p) {
 // Картка товару в іншому місті (#/p/<id>/<місто>) — з мапи «Ціна в інших містах»; вибране місто не змінюється.
 const cityCatalogs = new Map();
 async function cityProduct(slug, id) {
-  if (!cityCatalogs.has(slug)) {
+  const chain = chainById(id);
+  const key = `${chain}/${slug}`;
+  if (!cityCatalogs.has(key)) {
     cityCatalogs.set(
-      slug,
-      fetch(`data/cities/${slug}/products.json`)
-        .then((r) => r.json())
+      key,
+      (chain === 'atb' ? fetch(`data/cities/${slug}/products.json`).then((r) => r.json()) : chainProducts(chain, slug))
         .then((list) => new Map(list.map((x) => [x.id, x])))
         .catch(() => new Map()),
     );
   }
-  const base = (await cityCatalogs.get(slug)).get(id);
-  return base && { ...base, from: slug, _view: true, _per: perUnit(base) };
+  const base = (await cityCatalogs.get(key)).get(id);
+  if (!base) return null;
+  const p = expand({ ...base, from: slug, _view: true });
+  p._per = perUnit(p);
+  return p;
 }
 
 let productSeq = 0;
@@ -2220,7 +2224,7 @@ async function renderProduct(id, slug) {
     </section>
     ${otherChains(p).length && !p._view ? '<section class="panel vs" id="vs"></section>' : ''}
     ${
-      chainOf(p) === 'atb'
+      COMPARE_CHAINS.includes(chainOf(p)) && (chainOf(p) === 'atb' || MULTI_CHAIN)
         ? `<section class="panel" id="compare">
       <div class="panel__head"><h2>Ціна в інших містах</h2></div>
       <div class="sk" style="height:120px;border-radius:12px"></div>
@@ -2729,12 +2733,15 @@ function vsDiff(a, b) {
 // data/compare/NN.json: { id: { місто: ціна | [ціна, ціна_до_знижки] } } — будує scraper/compare.js.
 
 const compareShards = new Map();
-async function loadCompare(id) {
+// Ціни товару в усіх містах: АТБ — data/compare, інші мережі — data/chains/<мережа>/compare (scraper/chain-levels.js).
+const COMPARE_CHAINS = ['atb', 'silpo', 'fora', 'metro', 'auchan', 'novus', 'tavriav'];
+async function loadCompare(id, chain = 'atb') {
   const shard = String(id % SHARDS).padStart(2, '0');
-  if (!compareShards.has(shard)) {
-    compareShards.set(shard, fetch(`data/compare/${shard}.json`).then((r) => (r.ok ? r.json() : {})).catch(() => ({})));
+  const key = `${chain}/${shard}`;
+  if (!compareShards.has(key)) {
+    compareShards.set(key, fetch(`${chain === 'atb' ? 'data' : `data/chains/${chain}`}/compare/${shard}.json`).then((r) => (r.ok ? r.json() : {})).catch(() => ({})));
   }
-  return (await compareShards.get(shard))[id] || {};
+  return (await compareShards.get(key))[id] || {};
 }
 
 // Мапа: межі областей (Natural Earth, суспільне надбання) у проєкції, з якою зберігали контури.
@@ -2818,9 +2825,12 @@ function placeLabels(pts, here, map, widthOf, m = 1, taken = []) {
 }
 
 async function renderCompare(el, p) {
-  const [prices, map] = await Promise.all([loadCompare(p.id), loadMap().catch(() => null)]);
+  const chain = chainOf(p);
+  const [prices, map] = await Promise.all([loadCompare(p.id, chain), loadMap().catch(() => null)]);
   if (!el.isConnected) return;
-  const rows = state.cities
+  // Міста мережі, де ми збираємо її каталог (без тих, де ціни беруться з сусіднього міста).
+  const cities = chain === 'atb' ? state.cities : (state.chainCities[chain] || []).filter((c) => !c.from);
+  const rows = cities
     .filter((c) => prices[c.slug] != null)
     .map((c) => {
       const v = prices[c.slug];
@@ -2838,7 +2848,7 @@ async function renderCompare(el, p) {
   const min = rows[0].price;
   const max = rows.at(-1).price;
   const cheapest = rows.filter((r) => r.price === min).map((r) => r.c.name);
-  const absent = state.cities.length - rows.length;
+  const absent = cities.length - rows.length;
 
   let summary;
   if (min === max) summary = `Однакова ціна в усіх ${rows.length} містах.`;
@@ -2886,7 +2896,7 @@ async function renderCompare(el, p) {
   let mapHtml = '';
   if (map) {
     const byCity = new Map(rows.map((r) => [r.c, r]));
-    const pts = state.cities.filter((c) => c.lat != null).map((c) => ({ c, r: byCity.get(c), xy: mapXY(map, c) }));
+    const pts = cities.filter((c) => c.lat != null).map((c) => ({ c, r: byCity.get(c), xy: mapXY(map, c) }));
     // Ширина підпису на око: назва 13px, ціна 15.5px (+ відсоток 13px).
     const labels = placeLabels(pts, here, map, (c, r) =>
       Math.max(c.name.length * 7.2, fmtPrice(r.price).length * 9.5 + (diffOf(r)?.cls ? diffOf(r).text.length * 7.5 + 5 : 0)),
@@ -2936,7 +2946,7 @@ async function renderCompare(el, p) {
     <details class="compare__list"${map ? '' : ' open'}><summary>Показати списком (${rows.length} ${plural(rows.length, 'місто', 'міста', 'міст')})</summary>
       <div class="crows">${rows.map(row).join('')}</div>
     </details>
-    <p class="note">Ціни за ${fmtDate(parseDate(state.meta.updated))}, по одному магазину в кожному місті${absent ? `; у ${absent} містах товару немає в асортименті` : ''}. Натисніть місто, щоб побачити ціну й історію в ньому.${map ? `${max > min ? ' Колір області — середня ціна в її містах.' : ''} Межі: Natural Earth.` : ''}</p>`;
+    <p class="note">Ціни${chain === 'atb' ? '' : ` ${CHAINS[chain]}`} за ${fmtDate(parseDate(state.meta.updated))}, по одному магазину в кожному місті${chain === 'atb' ? '' : `, де ми збираємо її каталог (${cities.length} ${plural(cities.length, 'місто', 'міста', 'міст')})`}${absent ? `; у ${absent} містах товару немає в асортименті` : ''}. Натисніть місто, щоб побачити ціну й історію в ньому.${map ? `${max > min ? ' Колір області — середня ціна в її містах.' : ''} Межі: Natural Earth.` : ''}</p>`;
 
   // Картка товару з цінами іншого міста; вибране місто лишається тим самим.
   const go = (slug) => {
@@ -2945,7 +2955,7 @@ async function renderCompare(el, p) {
   };
   const tip = el.querySelector('.umap__tip');
   const showTip = (g, touch) => {
-    const c = state.cities.find((x) => x.slug === g.dataset.city);
+    const c = cities.find((x) => x.slug === g.dataset.city);
     const r = rows.find((x) => x.c === c);
     const d = r && diffOf(r);
     const price = r
