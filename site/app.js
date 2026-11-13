@@ -191,8 +191,13 @@ const chainById = (id) => Object.entries(ID_BASE).reduce((best, [c, b]) => (id >
 const chainOf = (p) => p.chain || 'atb';
 // Мережі з одним каталогом на всі свої міста: «Траш!» (акції однакові всюди), Грош (ціни інтернет-магазину у Вінниці).
 const NATIONAL = new Set(['thrash', 'grosh']);
+// Якщо в місті мережа онлайн не продає (from — див. loadCities), каталог — її найближчого міста.
 const chainDir = (chain, slug = state.city.slug) =>
-  chain === 'atb' ? `data/cities/${slug}` : NATIONAL.has(chain) ? `data/chains/${chain}` : `data/chains/${chain}/${slug}`;
+  chain === 'atb'
+    ? `data/cities/${slug}`
+    : NATIONAL.has(chain)
+      ? `data/chains/${chain}`
+      : `data/chains/${chain}/${state.chainCities[chain]?.find((x) => x.slug === slug)?.from || slug}`;
 // Позначка мережі (на сторінці товару й у порівнянні).
 const chainTag = (p) => (MULTI_CHAIN ? `<span class="chain chain--${chainOf(p)}">${CHAINS[chainOf(p)]}</span>` : '');
 
@@ -216,15 +221,19 @@ async function loadCities() {
   state.chainCities = { atb: state.cities };
   if (MULTI_CHAIN) {
     // Міста інших мереж — ті з наших, де мережа є (адреса — її магазину). «Траш!» — лише акції, однакові в усіх його магазинах.
-    const lists = await Promise.all(
-      [...CITY_CHAINS, 'thrash'].map((c) =>
-        fetch(`data/chains/${c}/cities.json`)
-          .then((r) => (r.ok ? r.json() : []))
-          .catch(() => []),
-      ),
-    );
+    // Міста, де магазин мережі є, а онлайн-каталогу немає (data/chains/nearby.json: { мережа: [{ slug, from, km }] }) —
+    // теж її міста, з цінами найближчого міста from.
+    const json = (file, fallback) =>
+      fetch(file)
+        .then((r) => (r.ok ? r.json() : fallback))
+        .catch(() => fallback);
+    const [nearby, ...lists] = await Promise.all([json('data/chains/nearby.json', {}), ...[...CITY_CHAINS, 'thrash'].map((c) => json(`data/chains/${c}/cities.json`, []))]);
     [...CITY_CHAINS, 'thrash'].forEach((c, i) => {
       const own = lists[i].map((x) => state.cities.find((y) => y.slug === x.slug) && { ...state.cities.find((y) => y.slug === x.slug), ...(x.address ? { address: x.address } : {}) }).filter(Boolean);
+      for (const x of nearby[c] || []) {
+        const city = state.cities.find((y) => y.slug === x.slug);
+        if (city && !own.some((y) => y.slug === x.slug) && own.some((y) => y.slug === x.from)) own.push({ ...city, from: x.from, km: x.km });
+      }
       if (own.length) state.chainCities[c] = own;
     });
   }
@@ -306,7 +315,7 @@ function placeHtml() {
   const stores = chainsIn(slug)
     .map((c) => {
       const here = state.chainCities[c].find((x) => x.slug === slug);
-      const sub = STORE_NOTE[c] || here.address || '';
+      const sub = STORE_NOTE[c] || (here.from ? `Онлайн тут не продає — ціни з міста ${cityName(here.from)}` : here.address) || '';
       return `<button type="button" class="store-card" data-chain="${c}" aria-pressed="${c === state.chain}">
           <span class="store-card__mark chain--${c}" aria-hidden="true">${esc(STORE_MARK[c] || CHAINS[c].replace(/[^\p{L}]/gu, '').slice(0, 2))}</span>
           <span class="store-card__text"><b>${esc(CHAINS[c])}</b>${sub ? `<small>${esc(sub)}</small>` : ''}</span>
@@ -512,7 +521,9 @@ async function loadData() {
   $('#updated').textContent =
     state.chain === 'thrash'
       ? `${state.city.name}, «Траш!»: лише акції, однакові в усіх магазинах мережі · ${m.productCount.toLocaleString('uk')} товарів · оновлено ${fmtDate(parseDate(m.updated))}`
-      : `${state.city.name}, магазин ${CHAINS[state.chain]}: ${m.store.address} · ${m.productCount.toLocaleString('uk')} товарів · оновлено ${fmtDate(parseDate(m.updated))}`;
+      : state.city.from
+        ? `${state.city.name}: ${CHAINS[state.chain]} тут онлайн не продає — ціни магазину в місті ${cityName(state.city.from)} (${state.city.km} км), ${m.store.address} · ${m.productCount.toLocaleString('uk')} товарів · оновлено ${fmtDate(parseDate(m.updated))}`
+        : `${state.city.name}, магазин ${CHAINS[state.chain]}: ${m.store.address} · ${m.productCount.toLocaleString('uk')} товарів · оновлено ${fmtDate(parseDate(m.updated))}`;
 
   const groups = new Map();
   for (const p of products) groups.set(p.group || 'Інше', (groups.get(p.group || 'Інше') || 0) + 1);
