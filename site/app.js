@@ -334,7 +334,7 @@ function placeHtml() {
       <div class="place__cities" id="placeCities" role="listbox" aria-label="Місто"></div>
       ${
         MULTI_CHAIN
-          ? `<h3 class="place__h">Магазин у місті ${esc(state.city.name)}</h3>
+          ? `<h3 class="place__h">Ваш основний магазин</h3>
       <p class="note place__hint">Від магазину залежать товари в пошуку й на головній; ціни інших мереж міста — у порівнянні на сторінці товару.</p>
       <div class="store-grid" role="group" aria-label="Магазин">${stores}</div>`
           : `<p class="note place__hint">Ціни магазину АТБ у вибраному місті: ${esc(state.city.address || '')}</p>`
