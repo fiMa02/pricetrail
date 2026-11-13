@@ -2230,13 +2230,16 @@ try {
 const MATCH_STOP = new Set(
   'з зі із та і й в у на для без по тм гат шт вагов фасов преміум тетра пляшк стака пакет банка фольг флако фільт мрц тек стери пасте ультр натур упако скло пет об ск бут кор'.split(' '),
 );
+// Латиниця — кирилицею (для порівняння назв): одні мережі пишуть «Oreo», «Milka», інші — «Орео», «Мілка».
+const LAT_CYR = { sh: 'ш', ch: 'ч', kh: 'х', zh: 'ж', ts: 'ц', ya: 'я', yu: 'ю', a: 'а', b: 'б', c: 'к', d: 'д', e: 'е', f: 'ф', g: 'г', h: 'х', i: 'і', j: 'й', k: 'к', l: 'л', m: 'м', n: 'н', o: 'о', p: 'п', q: 'к', r: 'р', s: 'с', t: 'т', u: 'у', v: 'в', w: 'в', x: 'кс', y: 'і', z: 'з' };
+const cyr = (w) => (/[a-z]/.test(w) ? w.replace(/sh|ch|kh|zh|ts|ya|yu|[a-z]/g, (m) => LAT_CYR[m]) : w);
 const matchWords = (p) =>
   (p._w ||= new Set(
     norm(p.name)
       .replace(/[«»"“”()®™,.!+*]/g, ' ')
       .split(/\s+/)
       .filter((w) => w.length > 1 && !/\d/.test(w) && !w.includes('/'))
-      .map((w) => w.slice(0, 5))
+      .map((w) => cyr(w).slice(0, 5))
       .filter((w) => !MATCH_STOP.has(w)),
   ));
 const qtyOf = (p) => (p._qty === undefined ? (p._qty = p.unit === 'кг' ? null : parseWeight(p.name)) : p._qty);
@@ -2269,7 +2272,8 @@ const VARIANTS = Object.entries({
   карам: 'карам', марме: 'марме', згущ: 'згущ', мят: 'мят', кориц: 'кориц', імбир: 'імбир', молоко: 'молоко', какао: 'какао',
   часни: 'часни', цибул: 'цибул', сирн: 'сирн', бекон: 'бекон', папри: 'папри', гостр: 'гостр', томат: 'томат', гриб: 'гриб',
   краб: 'краб', кур: 'кур', ялов: 'ялов', свин: 'свин', індич: 'індич', качк: 'качк', качин: 'качк', кроли: 'кроли',
-  телят: 'телят', лосос: 'лосос', тунц: 'тунц', форел: 'форел', оселе: 'оселе',
+  телят: 'телят', лосос: 'лосос', тунц: 'тунц', форел: 'форел', оселе: 'оселе', сметан: 'сметан', хазел: 'фунд', черрі: 'вишн',
+  евкал: 'евкал', ментол: 'мят', сирк: '', сир: 'сир', чорниц: 'чорниц', лохин: 'чорниц',
   світл: 'світл', темн: 'темн', червон: 'червон', рожев: 'рожев', біле: 'біл', біла: 'біл', білий: 'біл',
 });
 const variantsOf = (p) =>
@@ -2279,6 +2283,7 @@ const variantsOf = (p) =>
         .split(/[^a-zа-яіїєґ]+/)
         .filter(Boolean)
         .slice(1)
+        .map(cyr)
         .filter((w) => !w.startsWith('карамеліз'))
         .map((w) => VARIANTS.find(([pre]) => w.startsWith(pre))?.[1])
         .filter(Boolean),
@@ -2292,6 +2297,11 @@ const autoMatch = (a, b, score) => {
   const pa = pctOf(a);
   const pb = pctOf(b);
   if (pa && pb && +pa !== +pb) return false;
+  // Кількість штук в упаковці й витримка («10 шт» і «20шт», «9 міс.» і «12 міс.») — теж різні товари.
+  for (const re of [/(\d+)\s*шт/, /(\d+)\s*міс/]) {
+    const [na, nb] = [a, b].map((p) => p.name.match(re)?.[1]);
+    if (na && nb && +na !== +nb) return false;
+  }
   const va = variantsOf(a);
   const vb = variantsOf(b);
   if (va && vb && va !== vb) return false;
@@ -2314,8 +2324,8 @@ function matchScore(a, b) {
   // («Lay's зі смаком реберець» і «Lay's зі смаком сиру»).
   s -= (0.8 * Math.min(sa - common, sb - common)) / Math.sqrt(sa * sb);
   // Бренд: однаковий — плюс; різні (і бренду одного немає в назві другого) — це інший товар.
-  const ba = a.brand && norm(a.brand).slice(0, 5);
-  const bb = b.brand && norm(b.brand).slice(0, 5);
+  const ba = a.brand && cyr(norm(a.brand)).slice(0, 5);
+  const bb = b.brand && cyr(norm(b.brand)).slice(0, 5);
   // (В овочах і фруктах «бренд» в АТБ — країна походження, тож різниця там нічого не каже.)
   if (ba && bb) s += ba === bb ? 0.2 : wa.has(bb) || wb.has(ba) || a.group === 'Овочі та фрукти' ? 0 : -0.3;
   const qa = qtyOf(a);
