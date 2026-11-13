@@ -2198,6 +2198,7 @@ async function renderProduct(id, slug) {
     <section class="panel">
       <div class="panel__head">
         <h2>Історія ціни</h2>
+        <span class="hist-forming" id="histForming" hidden>Історія в процесі формування</span>
         <div class="seg ranges" role="group" aria-label="Період">${RANGES.map(([l], i) => `<button data-r="${i}" aria-pressed="${i === 4}">${l}</button>`).join('')}</div>
       </div>
       <div class="chart" id="chart"><div class="sk" style="height:280px;border-radius:12px"></div></div>
@@ -2221,6 +2222,12 @@ async function renderProduct(id, slug) {
   const hist = await loadHistory(id, p.from, chainOf(p));
   if (seq !== productSeq || !$('#chart')) return;
   const cur = segments(hist, Infinity).at(-1);
+  // Ціну відстежуємо менше тижня — графік і статистика ще неповні.
+  const since = hist.length ? parseDate(hist[0][0]) : null;
+  if (!since || parseDate(state.meta.updated) - since < 7 * DAY) {
+    $('#histForming').hidden = false;
+    if (since) $('#histForming').title = `Ціну відстежуємо з ${fmtDate(since)}`;
+  }
   if (p.oldPrice && cur?.inflated) {
     $('#warn').innerHTML = `<p class="warn-box"><b>⚠</b><span>Ціну до знижки завищено: перед акцією товар коштував <b>${fmtPrice(cur.ref)} грн</b>, а не ${fmtPrice(p.oldPrice)} грн.
       ${realDiscount(p.price, cur.ref)}, а не знижка ${pct(p.price, p.oldPrice)}%.</span></p>`;
@@ -3113,7 +3120,7 @@ function renderChart(el, hist, days, unit) {
       ${oldPath ? `<span>${swatch('old-line')}Ціна до знижки</span>` : ''}
       ${hasInflated ? `<span>${swatch('old-line old-line--inflated')}⚠ Завищена ціна до знижки</span><span>${swatch('ref-line')}Ціна перед акцією</span>` : ''}
     </div>
-    ${spanDays < 3 ? `<p class="note">Історія збирається з ${fmtDate(x0)}. Графік наповнюватиметься щодня.</p>` : ''}`;
+`;
 
   const svg = el.querySelector('svg');
   const cross = el.querySelector('.cross');
