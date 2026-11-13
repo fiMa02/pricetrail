@@ -340,7 +340,7 @@ function initPlace() {
       ? shown
           .map((c) => {
             const n = MULTI_CHAIN ? chainsIn(c.slug).length : 0;
-            return `<button type="button" class="place__city" role="option" data-slug="${c.slug}" aria-selected="${c.slug === state.city.slug}">${esc(c.name)}${n > 1 ? `<small>${n} мереж${n < 5 ? 'і' : ''}</small>` : ''}</button>`;
+            return `<button type="button" class="place__city" role="option" data-slug="${c.slug}" aria-selected="${c.slug === state.city.slug}">${esc(c.name)}${n ? `<small>${n} ${n % 10 === 1 && n % 100 !== 11 ? 'мережа' : n % 10 >= 2 && n % 10 <= 4 && (n % 100 < 12 || n % 100 > 14) ? 'мережі' : 'мереж'}</small>` : ''}</button>`;
           })
           .join('')
       : '<p class="note">Такого міста немає</p>';
