@@ -1513,9 +1513,11 @@ async function renderHomeMap(el) {
   const [lv0, map, weeks, other] = await Promise.all([loadLevels(), loadMap().catch(() => null), loadWeeks(), loadChainLevels()]);
   if (!el.isConnected) return;
   if (!map || !lv0) return el.remove();
-  // Мережа на мапі: типово — вибрана в шапці; перемикач поруч дає подивитись і іншу (повзунок тижнів — лише АТБ).
+  // Мережа на мапі — вибрана в налаштуваннях (основний магазин); якщо для неї мапи немає (Траш!, Грош, мережі з одним
+  // містом) — блок не показуємо. Повзунок тижнів — лише АТБ.
   const levelsOf = { atb: lv0, ...other };
-  let chain = levelsOf[state.chain] ? state.chain : 'atb';
+  const chain = state.chain;
+  if (!levelsOf[chain]) return el.remove();
   // Дані тижня (перераховуються, коли повзунком вибирають інший тиждень).
   // Кожен пункт — і місто (c), і його значення (r.v); наші щоденні міста мають slug.
   let lv, list, lo, hi, span, tone, pts, here, sums;
@@ -1634,13 +1636,7 @@ async function renderHomeMap(el) {
           <span class="umap__week"></span>
         </div>`
       : '';
-  el.innerHTML = `<div class="panel__head"><h2>Рівень цін у містах</h2>${
-    Object.keys(levelsOf).length > 1
-      ? `<div class="seg map-chain" role="group" aria-label="Мережа">${Object.keys(levelsOf)
-          .map((k) => `<button type="button" data-chain="${k}" aria-pressed="${k === chain}">${CHAINS[k]}</button>`)
-          .join('')}</div>`
-      : ''
-  }</div>
+  el.innerHTML = `<div class="panel__head"><h2>Рівень цін у містах${MULTI_CHAIN ? ` <span class="chain chain--${chain}">${esc(CHAINS[chain])}</span>` : ''}</h2></div>
     <p class="compare__summary">${summaryHtml()}</p>
     <div class="umap umap--zoom">
       <svg viewBox="0 0 ${map.w} ${map.h}" role="img" aria-label="Мапа: різниця цін між містами">
@@ -1786,17 +1782,6 @@ async function renderHomeMap(el) {
     tip.hidden = true;
     draw();
   };
-  el.querySelector('.map-chain')?.addEventListener('click', (e) => {
-    const b = e.target.closest('[data-chain]');
-    if (!b || b.dataset.chain === chain) return;
-    chain = b.dataset.chain;
-    for (const x of el.querySelectorAll('.map-chain button')) x.setAttribute('aria-pressed', x === b);
-    const slider = el.querySelector('.umap__weeks input');
-    // АТБ — з останнього тижня.
-    setData(levelsOf[chain]);
-    if (slider) slider.value = weekAt;
-    paint();
-  });
   const slider = el.querySelector('.umap__weeks input');
   if (slider) {
     slider.addEventListener('input', async () => {
