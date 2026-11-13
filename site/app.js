@@ -2233,13 +2233,15 @@ const MATCH_STOP = new Set(
 // Латиниця — кирилицею (для порівняння назв): одні мережі пишуть «Oreo», «Milka», інші — «Орео», «Мілка».
 const LAT_CYR = { sh: 'ш', ch: 'ч', kh: 'х', zh: 'ж', ts: 'ц', ya: 'я', yu: 'ю', a: 'а', b: 'б', c: 'к', d: 'д', e: 'е', f: 'ф', g: 'г', h: 'х', i: 'і', j: 'й', k: 'к', l: 'л', m: 'м', n: 'н', o: 'о', p: 'п', q: 'к', r: 'р', s: 'с', t: 'т', u: 'у', v: 'в', w: 'в', x: 'кс', y: 'і', z: 'з' };
 const cyr = (w) => (/[a-z]/.test(w) ? w.replace(/sh|ch|kh|zh|ts|ya|yu|[a-z]/g, (m) => LAT_CYR[m]) : w);
+// Без закінчень відмінків: «цілими», «цілий», «цілим» — одне слово (далі беремо лише початок слова).
+const stem = (w) => w.replace(/(ими|ами|ями|ого|ому|ою|ею|ий|ій|им|ім|их|іх|ої|ом|ем|ам|ям|ах|ях|ая|яя|ее|ие|ые|а|я|у|ю|і|и|о|е|ь)$/, (m, e, i) => (i >= 3 ? '' : m));
 const matchWords = (p) =>
   (p._w ||= new Set(
     norm(p.name)
       .replace(/[«»"“”()®™,.!+*]/g, ' ')
       .split(/\s+/)
       .filter((w) => w.length > 1 && !/\d/.test(w) && !w.includes('/'))
-      .map((w) => cyr(w).slice(0, 5))
+      .map((w) => stem(cyr(w)).slice(0, 5))
       .filter((w) => !MATCH_STOP.has(w)),
   ));
 const qtyOf = (p) => (p._qty === undefined ? (p._qty = p.unit === 'кг' ? null : parseWeight(p.name)) : p._qty);
@@ -2297,6 +2299,8 @@ const autoMatch = (a, b, score) => {
   const pa = pctOf(a);
   const pb = pctOf(b);
   if (pa && pb && +pa !== +pb) return false;
+  // «В асортименті» — невідомо, який саме смак чи різновид.
+  if (/асорт/i.test(a.name) || /асорт/i.test(b.name)) return false;
   // Кількість штук в упаковці й витримка («10 шт» і «20шт», «9 міс.» і «12 міс.») — теж різні товари.
   for (const re of [/(\d+)\s*шт/, /(\d+)\s*міс/]) {
     const [na, nb] = [a, b].map((p) => p.name.match(re)?.[1]);
@@ -2324,10 +2328,12 @@ function matchScore(a, b) {
   // («Lay's зі смаком реберець» і «Lay's зі смаком сиру»).
   s -= (0.8 * Math.min(sa - common, sb - common)) / Math.sqrt(sa * sb);
   // Бренд: однаковий — плюс; різні (і бренду одного немає в назві другого) — це інший товар.
-  const ba = a.brand && cyr(norm(a.brand)).slice(0, 5);
-  const bb = b.brand && cyr(norm(b.brand)).slice(0, 5);
+  const ba = a.brand && stem(cyr(norm(a.brand))).slice(0, 5);
+  const bb = b.brand && stem(cyr(norm(b.brand))).slice(0, 5);
   // (В овочах і фруктах «бренд» в АТБ — країна походження, тож різниця там нічого не каже.)
   if (ba && bb) s += ba === bb ? 0.2 : wa.has(bb) || wb.has(ba) || a.group === 'Овочі та фрукти' ? 0 : -0.3;
+  // Бренд лише в одного (Фора, Грош його не дають), але він є в назві другого — так само той самий бренд.
+  else if (ba ? wb.has(ba) : bb && wa.has(bb)) s += 0.2;
   const qa = qtyOf(a);
   const qb = qtyOf(b);
   if (qa && qb) s += sameQty(qa, qb) ? 0.15 : -0.1;
