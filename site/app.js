@@ -1494,19 +1494,27 @@ const loadWeek = (date) => {
   return weekCache.get(date);
 };
 
-// ТЕСТ: рівень цін у містах для Сільпо (будує scraper/silpo-snapshot.js).
-let silpoLevels;
-const loadSilpoLevels = () =>
-  !MULTI_CHAIN ? Promise.resolve(null) : (silpoLevels ||= fetch('data/chains/silpo/levels.json')
-    .then((r) => (r.ok ? r.json() : null))
-    .catch(() => null));
+// ТЕСТ: рівень цін у містах інших мереж — data/chains/<мережа>/levels.json. Сільпо — окремий знімок усіх його міст
+// (scraper/silpo-snapshot.js); решта — зі щоденних каталогів наших міст (scraper/chain-levels.js).
+const LEVEL_CHAINS = ['silpo', 'fora', 'metro', 'auchan', 'novus', 'tavriav'];
+let chainLevels;
+const loadChainLevels = () =>
+  !MULTI_CHAIN
+    ? Promise.resolve({})
+    : (chainLevels ||= Promise.all(
+        LEVEL_CHAINS.map((c) =>
+          fetch(`data/chains/${c}/levels.json`)
+            .then((r) => (r.ok ? r.json() : null))
+            .catch(() => null),
+        ),
+      ).then((all) => Object.fromEntries(LEVEL_CHAINS.map((c, i) => [c, all[i]]).filter(([, lv]) => lv?.cities?.length >= 3))));
 
 async function renderHomeMap(el) {
-  const [lv0, map, weeks, slv] = await Promise.all([loadLevels(), loadMap().catch(() => null), loadWeeks(), loadSilpoLevels()]);
+  const [lv0, map, weeks, other] = await Promise.all([loadLevels(), loadMap().catch(() => null), loadWeeks(), loadChainLevels()]);
   if (!el.isConnected) return;
   if (!map || !lv0) return el.remove();
   // Мережа на мапі: типово — вибрана в шапці; перемикач поруч дає подивитись і іншу (повзунок тижнів — лише АТБ).
-  const levelsOf = { atb: lv0, ...(slv?.cities?.length ? { silpo: slv } : {}) };
+  const levelsOf = { atb: lv0, ...other };
   let chain = levelsOf[state.chain] ? state.chain : 'atb';
   // Дані тижня (перераховуються, коли повзунком вибирають інший тиждень).
   // Кожен пункт — і місто (c), і його значення (r.v); наші щоденні міста мають slug.
@@ -1610,7 +1618,11 @@ async function renderHomeMap(el) {
       ? `Відсоток — на скільки поточні ціни Сільпо (з акціями) у місті вищі чи нижчі за середні по ${list.length} ${plural(list.length, 'місту', 'містах', 'містах')}, де є Сільпо, за спільними товарами; по одному магазину в кожному місті.${
           lv.date ? ` Знімок за ${fmtDate(parseDate(lv.date))}: молочні продукти, напої, хліб, ковбаси, кава й чай, побутова хімія.` : ''
         } Колір області — середнє її міст.`
-      : `Відсоток — на скільки поточні ціни (з акціями) у місті вищі чи нижчі за середні по ${list.length} ${plural(list.length, 'місту', 'містах', 'містах')}, за спільними товарами; по одному магазину в кожному місті.${
+      : chain !== 'atb'
+        ? `Відсоток — на скільки поточні ціни ${CHAINS[chain]} (з акціями) у місті вищі чи нижчі за середні по ${list.length} ${plural(list.length, 'місту', 'містах', 'містах')}, де ми збираємо її каталог, за спільними товарами — усіма, що є в обох містах; по одному магазину в кожному місті.${
+            lv.date ? ` Ціни за ${fmtDate(parseDate(lv.date))}.` : ''
+          } Колір області — середнє її міст.`
+        : `Відсоток — на скільки поточні ціни (з акціями) у місті вищі чи нижчі за середні по ${list.length} ${plural(list.length, 'місту', 'містах', 'містах')}, за спільними товарами; по одному магазину в кожному місті.${
           lv.date ? ` Знімок за ${fmtDate(parseDate(lv.date))}: молочні продукти, напої, хліб, ковбаси, кава й чай, побутова хімія.` : ''
         } Колір області — середнє її міст.`;
   // Повзунок тижнів — коли знімків щонайменше два; типово — останній.
@@ -1623,7 +1635,7 @@ async function renderHomeMap(el) {
         </div>`
       : '';
   el.innerHTML = `<div class="panel__head"><h2>Рівень цін у містах</h2>${
-    levelsOf.silpo
+    Object.keys(levelsOf).length > 1
       ? `<div class="seg map-chain" role="group" aria-label="Мережа">${Object.keys(levelsOf)
           .map((k) => `<button type="button" data-chain="${k}" aria-pressed="${k === chain}">${CHAINS[k]}</button>`)
           .join('')}</div>`
