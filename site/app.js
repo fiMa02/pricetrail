@@ -196,18 +196,20 @@ const chainDir = (chain, slug = state.city.slug) =>
 // Позначка мережі (на сторінці товару й у порівнянні).
 const chainTag = (p) => (MULTI_CHAIN ? `<span class="chain chain--${chainOf(p)}">${CHAINS[chainOf(p)]}</span>` : '');
 
-// Мережа вибирається в шапці (state.chain): від неї залежать список міст, товари в пошуку й на головній.
+// Місто й магазин (мережу, state.chain) вибирають у налаштуваннях: спершу місто, тоді — одна з мереж, що в ньому є.
 // Міста мережі — data/chains/<мережа>/cities.json: [{ slug, address }] (адреса магазину цієї мережі);
-// state.cities — завжди всі міста АТБ (порівняння між містами, мапи).
+// state.cities — завжди всі міста АТБ (порівняння між містами, мапи); АТБ є в кожному з них.
 const chainCities = () => state.chainCities[state.chain];
-function fillCitySelect() {
-  $('#city').innerHTML = [...chainCities()]
-    .sort((a, b) => a.name.localeCompare(b.name, 'uk'))
-    .map((c) => `<option value="${c.slug}"${c.slug === state.city.slug ? ' selected' : ''}>${esc(c.name)}</option>`)
-    .join('');
+const chainsIn = (slug) => Object.keys(CHAINS).filter((c) => state.chainCities[c]?.some((x) => x.slug === slug));
+// Підпис у шапці: місто й магазин (посилання на налаштування).
+function showPlace() {
   $('#cityName').textContent = state.city.name;
+  const tag = $('#chainName');
+  tag.hidden = !MULTI_CHAIN;
+  tag.className = `chain chain--${state.chain}`;
+  tag.textContent = CHAINS[state.chain];
+  $('#placeChip').title = MULTI_CHAIN ? `${state.city.name}, ${CHAINS[state.chain]} — змінити в налаштуваннях` : `${state.city.name} — змінити в налаштуваннях`;
 }
-const nearestCity = (list, c) => list.reduce((a, b) => (Math.hypot(b.lat - c.lat, b.lon - c.lon) < Math.hypot(a.lat - c.lat, a.lon - c.lon) ? b : a));
 
 async function loadCities() {
   state.cities = await fetch('data/cities.json').then((r) => r.json());
@@ -226,42 +228,30 @@ async function loadCities() {
       if (own.length) state.chainCities[c] = own;
     });
   }
-  state.chain = state.chainCities[store.get('chain')] ? store.get('chain') : 'atb';
   const saved = store.get('city');
-  const all = state.cities.find((c) => c.slug === saved) || state.cities.find((c) => c.slug === 'kyiv') || state.cities[0];
-  state.city = chainCities().find((c) => c.slug === all.slug) || nearestCity(chainCities(), all);
-  fillCitySelect();
-  initCityMenu();
-  initChainPick();
-  $('#city').addEventListener('change', async () => {
-    state.city = chainCities().find((c) => c.slug === $('#city').value);
-    store.set('city', state.city.slug);
-    $('#cityName').textContent = state.city.name;
-    app.innerHTML = skeleton();
-    await loadData();
-    state.shown = PAGE;
-    route();
-  });
+  const city = state.cities.find((c) => c.slug === saved) || state.cities.find((c) => c.slug === 'kyiv') || state.cities[0];
+  const chain = store.get('chain');
+  state.chain = chainsIn(city.slug).includes(chain) ? chain : 'atb';
+  state.city = chainCities().find((c) => c.slug === city.slug);
+  showPlace();
 }
 
-// Перемикач мережі в шапці. Якщо вибраного міста в іншій мережі немає — беремо найближче, де вона є.
-function initChainPick() {
-  const sel = $('#chainSel');
-  sel.hidden = Object.keys(state.chainCities).length < 2;
-  for (const o of sel.options) o.hidden = !state.chainCities[o.value];
-  sel.value = state.chain;
-  sel.onchange = async () => {
-    state.chain = sel.value;
-    store.set('chain', state.chain);
-    state.city = chainCities().find((c) => c.slug === state.city.slug) || nearestCity(chainCities(), state.city);
-    store.set('city', state.city.slug);
-    fillCitySelect();
-    app.innerHTML = skeleton();
-    await loadData();
-    state.shown = PAGE;
-    if (location.hash.startsWith('#/p/')) location.hash = '#/';
-    else route();
-  };
+// Зміна міста чи магазину (з налаштувань). Якщо вибраної мережі в новому місті немає — магазин АТБ.
+async function setPlace(slug, chain = state.chain) {
+  if (!chainsIn(slug).includes(chain)) chain = 'atb';
+  if (slug === state.city.slug && chain === state.chain) return;
+  state.chain = chain;
+  state.city = chainCities().find((c) => c.slug === slug);
+  store.set('chain', chain);
+  store.set('city', slug);
+  showPlace();
+  const onSettings = location.hash === '#/settings';
+  if (onSettings) app.querySelector('.place')?.classList.add('is-loading');
+  else app.innerHTML = skeleton();
+  await loadData();
+  state.shown = PAGE;
+  if (onSettings) renderSettings(true);
+  else route();
 }
 
 // ---------- Налаштування (#/settings) ----------
@@ -303,16 +293,85 @@ function applyPerSetting() {
   }
 }
 
-function renderSettings() {
+// Примітка під назвою мережі на картці магазину (замість адреси).
+const STORE_NOTE = {
+  thrash: 'Лише акції — однакові в усіх магазинах мережі',
+  grosh: 'Ціни інтернет-магазину у Вінниці',
+};
+const PIN = '<path d="M12 22s7-6.2 7-12a7 7 0 1 0-14 0c0 5.8 7 12 7 12Z"/><circle cx="12" cy="10" r="2.5"/>';
+function placeHtml() {
+  const slug = state.city.slug;
+  const stores = chainsIn(slug)
+    .map((c) => {
+      const here = state.chainCities[c].find((x) => x.slug === slug);
+      const sub = STORE_NOTE[c] || here.address || '';
+      return `<button type="button" class="store-card" data-chain="${c}" aria-pressed="${c === state.chain}">
+          <span class="store-card__mark chain--${c}" aria-hidden="true">${esc(CHAINS[c].replace(/[^\p{L}]/gu, '').slice(0, 2))}</span>
+          <span class="store-card__text"><b>${esc(CHAINS[c])}</b>${sub ? `<small>${esc(sub)}</small>` : ''}</span>
+          <svg class="store-card__check" viewBox="0 0 24 24" aria-hidden="true"><path d="m5 12.5 4.5 4.5L19 7.5"/></svg>
+        </button>`;
+    })
+    .join('');
+  return `<section class="panel settings place">
+      <div class="panel__head"><h2>${MULTI_CHAIN ? 'Місто і магазин' : 'Місто'}</h2></div>
+      <div class="place__current"><svg viewBox="0 0 24 24" aria-hidden="true">${PIN}</svg><b>${esc(state.city.name)}</b>${MULTI_CHAIN ? `<span class="chain chain--${state.chain}">${esc(CHAINS[state.chain])}</span>` : ''}</div>
+      <label class="place__search"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+        <input type="search" id="placeQ" placeholder="Знайти місто" autocomplete="off" aria-label="Знайти місто"></label>
+      <div class="place__cities" id="placeCities" role="listbox" aria-label="Місто"></div>
+      ${
+        MULTI_CHAIN
+          ? `<h3 class="place__h">Магазин у місті ${esc(state.city.name)}</h3>
+      <p class="note place__hint">Від магазину залежать товари в пошуку й на головній; ціни інших мереж міста — у порівнянні на сторінці товару.</p>
+      <div class="store-grid" role="group" aria-label="Магазин">${stores}</div>`
+          : `<p class="note place__hint">Ціни магазину АТБ у вибраному місті: ${esc(state.city.address || '')}</p>`
+      }
+    </section>`;
+}
+function initPlace() {
+  const q = $('#placeQ');
+  const list = $('#placeCities');
+  const sorted = [...state.cities].sort((a, b) => a.name.localeCompare(b.name, 'uk'));
+  const paint = () => {
+    const words = norm(q.value).split(/\s+/).filter(Boolean);
+    const shown = sorted.filter((c) => words.every((w) => norm(c.name).includes(w)));
+    list.innerHTML = shown.length
+      ? shown
+          .map((c) => {
+            const n = MULTI_CHAIN ? chainsIn(c.slug).length : 0;
+            return `<button type="button" class="place__city" role="option" data-slug="${c.slug}" aria-selected="${c.slug === state.city.slug}">${esc(c.name)}${n > 1 ? `<small>${n} мереж${n < 5 ? 'і' : ''}</small>` : ''}</button>`;
+          })
+          .join('')
+      : '<p class="note">Такого міста немає</p>';
+    const sel = !words.length && list.querySelector('[aria-selected=true]');
+    if (sel) list.scrollTop = sel.offsetTop - list.clientHeight / 2 + sel.offsetHeight / 2;
+  };
+  q.oninput = paint;
+  q.onkeydown = (e) => {
+    const first = list.querySelector('[data-slug]');
+    if (e.key === 'Enter' && first) setPlace(first.dataset.slug);
+  };
+  list.onclick = (e) => {
+    const b = e.target.closest('[data-slug]');
+    if (b) setPlace(b.dataset.slug);
+  };
+  app.querySelector('.store-grid')?.addEventListener('click', (e) => {
+    const b = e.target.closest('[data-chain]');
+    if (b) setPlace(state.city.slug, b.dataset.chain);
+  });
+  paint();
+}
+
+function renderSettings(keepScroll = false) {
   document.querySelector('.top').classList.add('is-product');
   document.title = 'Налаштування — Жаба';
-  scrollTo(0, 0);
+  if (!keepScroll) scrollTo(0, 0);
   const seg = (name, options, value) =>
     `<div class="seg settings-seg" role="group" aria-label="${esc(name)}">${Object.entries(options)
       .map(([k, [label, icon]]) => `<button type="button" data-set="${name}" data-v="${k}" aria-pressed="${k === value}">${icon ? `<svg viewBox="0 0 24 24" aria-hidden="true">${icon}</svg>` : ''}${esc(label)}</button>`)
       .join('')}</div>`;
   app.innerHTML = `${backLink()}<h1 class="page-title">Налаштування</h1>
-    <section class="panel settings">
+    ${placeHtml()}
+    <section class="panel settings settings--view">
       <div class="panel__head"><h2>Вигляд</h2></div>
       <div class="settings-row">
         <div><b>Тема</b><span class="note">«Як у системі» — світла чи темна, як налаштовано на пристрої.</span></div>
@@ -328,7 +387,8 @@ function renderSettings() {
       </div>
     </section>
     <p class="note settings-note">Налаштування зберігаються лише в цьому браузері.</p>`;
-  app.querySelector('.settings').onclick = (e) => {
+  initPlace();
+  app.querySelector('.settings--view').onclick = (e) => {
     const b = e.target.closest('[data-set]');
     if (!b) return;
     if (b.dataset.set === 'theme') setTheme(b.dataset.v);
@@ -344,91 +404,6 @@ function renderSettings() {
 // Висота шапки — щоб «← назад» прилипав одразу під нею (шапка змінюється: фільтри, перенос рядків).
 const topBar = $('.top');
 new ResizeObserver(() => document.documentElement.style.setProperty('--top-h', `${topBar.offsetHeight}px`)).observe(topBar);
-
-// Вибір міста на комп'ютері: власне меню з пошуком (системний список з 26 міст незручний).
-// На сенсорних екранах лишається звичайний <select> — його показує CSS.
-function initCityMenu() {
-  const btn = $('#cityBtn');
-  const menu = $('#cityMenu');
-  const q = $('#cityQ');
-  const list = $('#cityList');
-  const sorted = () => [...chainCities()].sort((a, b) => a.name.localeCompare(b.name, 'uk'));
-  let shown = [];
-  let active = 0;
-  $('#cityName').textContent = state.city.name;
-
-  const paint = () => {
-    for (const [i, el] of [...list.children].entries()) {
-      el.classList.toggle('is-active', i === active);
-      if (i === active) el.scrollIntoView({ block: 'nearest' });
-    }
-  };
-  const render = () => {
-    const words = norm(q.value).split(/\s+/).filter(Boolean);
-    shown = sorted().filter((c) => words.every((w) => norm(c.name).includes(w)));
-    active = words.length ? 0 : Math.max(0, shown.findIndex((c) => c.slug === state.city.slug));
-    list.innerHTML = shown.length
-      ? shown
-          .map(
-            (c) => `<div class="city-opt" role="option" id="city-${c.slug}" data-slug="${c.slug}" aria-selected="${c.slug === state.city.slug}">
-              <b>${esc(c.name)}</b><small>${esc(c.address)}</small></div>`,
-          )
-          .join('')
-      : '<p class="note city-none">Такого міста немає</p>';
-    paint();
-  };
-  const open = () => {
-    q.value = '';
-    render();
-    menu.hidden = false;
-    btn.setAttribute('aria-expanded', 'true');
-    q.focus();
-  };
-  const close = (focusBtn) => {
-    menu.hidden = true;
-    btn.setAttribute('aria-expanded', 'false');
-    if (focusBtn) btn.focus();
-  };
-  const pick = (slug) => {
-    close(true);
-    if (slug === state.city.slug) return;
-    $('#city').value = slug;
-    $('#city').dispatchEvent(new Event('change'));
-  };
-
-  btn.onclick = () => (menu.hidden ? open() : close());
-  q.oninput = render;
-  q.onkeydown = (e) => {
-    const cols = getComputedStyle(list).gridTemplateColumns.split(' ').length;
-    const step = { ArrowDown: cols, ArrowUp: -cols, ArrowRight: 1, ArrowLeft: -1 }[e.key];
-    if (step && shown.length && (e.key.startsWith('ArrowU') || e.key.startsWith('ArrowD') || q.value === '')) {
-      e.preventDefault();
-      active = Math.min(shown.length - 1, Math.max(0, active + step));
-      paint();
-    } else if (e.key === 'Enter' && shown[active]) {
-      e.preventDefault();
-      pick(shown[active].slug);
-    } else if (e.key === 'Escape') {
-      close(true);
-    }
-  };
-  list.onclick = (e) => {
-    const opt = e.target.closest('[data-slug]');
-    if (opt) pick(opt.dataset.slug);
-  };
-  list.onpointermove = (e) => {
-    const opt = e.target.closest('[data-slug]');
-    if (!opt) return;
-    const i = shown.findIndex((c) => c.slug === opt.dataset.slug);
-    if (i !== active) {
-      active = i;
-      for (const [j, el] of [...list.children].entries()) el.classList.toggle('is-active', j === active);
-    }
-  };
-  document.addEventListener('pointerdown', (e) => {
-    if (!menu.hidden && !menu.contains(e.target) && !btn.contains(e.target)) close();
-  });
-}
 
 // Незмінні поля товарів мережі (назва, фото, розділ…) однакові в усіх її містах — лежать один раз
 // у data/chains/<мережа>/catalog.json (scraper/chain-pack.js); у products.json міста — ціни й те, що відрізняється.
