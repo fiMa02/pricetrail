@@ -5,8 +5,8 @@
     "lat": 50.45,
     "lon": 30.524,
     "address": "просп. Корольова  Академіка, 3",
-    "productCount": 4295,
-    "updated": "2026-11-12"
+    "productCount": 4279,
+    "updated": "2026-11-13"
   },
   {
     "slug": "dnipro",
@@ -14,8 +14,8 @@
     "lat": 48.465,
     "lon": 35.046,
     "address": "майдан Озерний, буд. 25",
-    "productCount": 4558,
-    "updated": "2026-11-12"
+    "productCount": 4561,
+    "updated": "2026-11-13"
   },
   {
     "slug": "kharkiv",
@@ -23,8 +23,8 @@
     "lat": 49.994,
     "lon": 36.231,
     "address": "просп. Аерокосмічний, буд. 181",
-    "productCount": 4221,
-    "updated": "2026-11-12"
+    "productCount": 4201,
+    "updated": "2026-11-13"
   },
   {
     "slug": "odesa",
@@ -32,8 +32,8 @@
     "lat": 46.482,
     "lon": 30.723,
     "address": "дор. Фонтанська, буд. 121",
-    "productCount": 3899,
-    "updated": "2026-11-12"
+    "productCount": 3901,
+    "updated": "2026-11-13"
   },
   {
     "slug": "lviv",
@@ -41,8 +41,8 @@
     "lat": 49.84,
     "lon": 24.03,
     "address": "вул. Липинського В., 36",
-    "productCount": 4329,
-    "updated": "2026-11-12"
+    "productCount": 4294,
+    "updated": "2026-11-13"
   },
   {
     "slug": "zaporizhzhia",
@@ -50,8 +50,8 @@
     "lat": 47.838,
     "lon": 35.139,
     "address": "вул. Космічна, 126 б",
-    "productCount": 4476,
-    "updated": "2026-11-12"
+    "productCount": 4459,
+    "updated": "2026-11-13"
   },
   {
     "slug": "kryvyi-rih",
@@ -59,8 +59,8 @@
     "lat": 47.91,
     "lon": 33.392,
     "address": "вул. Єгора Біркуна, буд. 9",
-    "productCount": 4392,
-    "updated": "2026-11-12"
+    "productCount": 4387,
+    "updated": "2026-11-13"
   },
   {
     "slug": "mykolaiv",
@@ -68,8 +68,8 @@
     "lat": 46.975,
     "lon": 31.995,
     "address": "вул. Привільна, буд. 71 А/1",
-    "productCount": 3740,
-    "updated": "2026-11-12"
+    "productCount": 3714,
+    "updated": "2026-11-13"
   },
   {
     "slug": "vinnytsia",
@@ -77,8 +77,8 @@
     "lat": 49.233,
     "lon": 28.468,
     "address": "вул. Липовецька, 6 а блок 4, блок 5",
-    "productCount": 4350,
-    "updated": "2026-11-12"
+    "productCount": 4396,
+    "updated": "2026-11-13"
   },
   {
     "slug": "poltava",
@@ -86,8 +86,8 @@
     "lat": 49.588,
     "lon": 34.551,
     "address": "вул. Героїв АТО, 81",
-    "productCount": 3722,
-    "updated": "2026-11-12"
+    "productCount": 3725,
+    "updated": "2026-11-13"
   },
   {
     "slug": "chernihiv",
@@ -95,8 +95,8 @@
     "lat": 51.494,
     "lon": 31.294,
     "address": "вул. Всіхсвятська, 5",
-    "productCount": 4176,
-    "updated": "2026-11-12"
+    "productCount": 4161,
+    "updated": "2026-11-13"
   },
   {
     "slug": "cherkasy",
@@ -104,8 +104,8 @@
     "lat": 49.444,
     "lon": 32.06,
     "address": "вул. Грушевського Михайла, буд. 73/2",
-    "productCount": 4275,
-    "updated": "2026-11-12"
+    "productCount": 4324,
+    "updated": "2026-11-13"
   },
   {
     "slug": "khmelnytskyi",
@@ -113,8 +113,8 @@
     "lat": 49.422,
     "lon": 26.987,
     "address": "вул. Вінницьке шосе, буд. 22-А",
-    "productCount": 4259,
-    "updated": "2026-11-12"
+    "productCount": 4245,
+    "updated": "2026-11-13"
   },
   {
     "slug": "zhytomyr",
@@ -122,8 +122,8 @@
     "lat": 50.254,
     "lon": 28.658,
     "address": "вул. Домбровського, 3",
-    "productCount": 4269,
-    "updated": "2026-11-12"
+    "productCount": 4313,
+    "updated": "2026-11-13"
   },
   {
     "slug": "sumy",
@@ -131,8 +131,8 @@
     "lat": 50.908,
     "lon": 34.798,
     "address": "вул. Героїв Крут, 76/3, прим. 1",
-    "productCount": 4283,
-    "updated": "2026-11-12"
+    "productCount": 4257,
+    "updated": "2026-11-13"
   },
   {
     "slug": "rivne",
@@ -140,8 +140,8 @@
     "lat": 50.619,
     "lon": 26.251,
     "address": "вул. Литовська, буд. 93-приміщення 100, 101",
-    "productCount": 4499,
-    "updated": "2026-11-12"
+    "productCount": 4480,
+    "updated": "2026-11-13"
   },
   {
     "slug": "ivano-frankivsk",
@@ -149,8 +149,8 @@
     "lat": 48.922,
     "lon": 24.711,
     "address": "вул. Максимовича, буд. 15",
-    "productCount": 4209,
-    "updated": "2026-11-12"
+    "productCount": 4199,
+    "updated": "2026-11-13"
   },
   {
     "slug": "kropyvnytskyi",
@@ -158,8 +158,8 @@
     "lat": 48.508,
     "lon": 32.262,
     "address": "вул. Є.Маланюка, 1",
-    "productCount": 4097,
-    "updated": "2026-11-12"
+    "productCount": 4112,
+    "updated": "2026-11-13"
   },
   {
     "slug": "ternopil",
@@ -167,8 +167,8 @@
     "lat": 49.553,
     "lon": 25.594,
     "address": "вул. Леся Курбаса, 2 а",
-    "productCount": 4083,
-    "updated": "2026-11-12"
+    "productCount": 4075,
+    "updated": "2026-11-13"
   },
   {
     "slug": "lutsk",
@@ -176,8 +176,8 @@
     "lat": 50.747,
     "lon": 25.325,
     "address": "вул. Карпенка-Карого, буд. 17",
-    "productCount": 4286,
-    "updated": "2026-11-12"
+    "productCount": 4292,
+    "updated": "2026-11-13"
   },
   {
     "slug": "uzhhorod",
@@ -185,8 +185,8 @@
     "lat": 48.621,
     "lon": 22.288,
     "address": "вул. Українська, 58",
-    "productCount": 4208,
-    "updated": "2026-11-12"
+    "productCount": 4268,
+    "updated": "2026-11-13"
   },
   {
     "slug": "chernivtsi",
@@ -195,7 +195,7 @@
     "lon": 25.936,
     "address": "вул. Калинівська, 13-в",
     "productCount": 6819,
-    "updated": "2026-11-12"
+    "updated": "2026-11-13"
   },
   {
     "slug": "kherson",
@@ -203,8 +203,8 @@
     "lat": 46.636,
     "lon": 32.617,
     "address": "вул. Вишнева, 157/71",
-    "productCount": 2826,
-    "updated": "2026-11-12"
+    "productCount": 2817,
+    "updated": "2026-11-13"
   },
   {
     "slug": "bila-tserkva",
@@ -212,8 +212,8 @@
     "lat": 49.796,
     "lon": 30.131,
     "address": "вул. Павліченко, 27",
-    "productCount": 3979,
-    "updated": "2026-11-12"
+    "productCount": 4056,
+    "updated": "2026-11-13"
   },
   {
     "slug": "kremenchuk",
@@ -221,8 +221,8 @@
     "lat": 49.066,
     "lon": 33.41,
     "address": "вул. Старшого лейтенанта Кагала, буд. 63 а",
-    "productCount": 4036,
-    "updated": "2026-11-12"
+    "productCount": 4032,
+    "updated": "2026-11-13"
   },
   {
     "slug": "kamianske",
@@ -230,8 +230,8 @@
     "lat": 48.507,
     "lon": 34.613,
     "address": "просп. Василя Стуса, 2 б, прим. 161",
-    "productCount": 3944,
-    "updated": "2026-11-12"
+    "productCount": 3947,
+    "updated": "2026-11-13"
   },
   {
     "slug": "krasyliv",
@@ -239,8 +239,8 @@
     "lat": 49.652,
     "lon": 26.971,
     "address": "вул. Максима Кондратюка, буд. 3",
-    "productCount": 3563,
-    "updated": "2026-11-12"
+    "productCount": 3555,
+    "updated": "2026-11-13"
   },
   {
     "slug": "nemyriv",
@@ -248,8 +248,8 @@
     "lat": 48.97,
     "lon": 28.842,
     "address": "вул. Костельна, буд. 82",
-    "productCount": 3721,
-    "updated": "2026-11-12"
+    "productCount": 3758,
+    "updated": "2026-11-13"
   },
   {
     "slug": "liuboml",
@@ -257,8 +257,8 @@
     "lat": 51.226,
     "lon": 24.037,
     "address": "вул. Незалежності, 25",
-    "productCount": 4498,
-    "updated": "2026-11-12"
+    "productCount": 4455,
+    "updated": "2026-11-13"
   },
   {
     "slug": "piatykhatky",
@@ -266,8 +266,8 @@
     "lat": 48.413,
     "lon": 33.692,
     "address": "вул. Козацька, 55 а",
-    "productCount": 3899,
-    "updated": "2026-11-12"
+    "productCount": 3901,
+    "updated": "2026-11-13"
   },
   {
     "slug": "korostyshiv",
@@ -275,8 +275,8 @@
     "lat": 50.319,
     "lon": 29.057,
     "address": "вул. Київська 63/вул.Шевченка, 38/61",
-    "productCount": 3830,
-    "updated": "2026-11-12"
+    "productCount": 3890,
+    "updated": "2026-11-13"
   },
   {
     "slug": "rakhiv",
@@ -285,7 +285,7 @@
     "lon": 24.205,
     "address": "вул. Миру, буд. 135-Б",
     "productCount": 3949,
-    "updated": "2026-11-12"
+    "updated": "2026-11-13"
   },
   {
     "slug": "vilniansk",
@@ -293,8 +293,8 @@
     "lat": 47.944,
     "lon": 35.433,
     "address": "пров. Торговий, 11",
-    "productCount": 2598,
-    "updated": "2026-11-12"
+    "productCount": 2585,
+    "updated": "2026-11-13"
   },
   {
     "slug": "yaremche",
@@ -302,8 +302,8 @@
     "lat": 48.459,
     "lon": 24.556,
     "address": "вул. Свободи, 24 а",
-    "productCount": 4177,
-    "updated": "2026-11-12"
+    "productCount": 4160,
+    "updated": "2026-11-13"
   },
   {
     "slug": "kaharlyk",
@@ -311,8 +311,8 @@
     "lat": 49.856,
     "lon": 30.818,
     "address": "вул. Столична, 2",
-    "productCount": 3110,
-    "updated": "2026-11-12"
+    "productCount": 3098,
+    "updated": "2026-11-13"
   },
   {
     "slug": "novoukrainka",
@@ -320,8 +320,8 @@
     "lat": 48.318,
     "lon": 31.526,
     "address": "вул. Соборна, буд. 54",
-    "productCount": 4072,
-    "updated": "2026-11-12"
+    "productCount": 4073,
+    "updated": "2026-11-13"
   },
   {
     "slug": "brody",
@@ -329,8 +329,8 @@
     "lat": 50.086,
     "lon": 25.152,
     "address": "вул. Набережна, 79",
-    "productCount": 3952,
-    "updated": "2026-11-12"
+    "productCount": 3936,
+    "updated": "2026-11-13"
   },
   {
     "slug": "bashtanka",
@@ -338,8 +338,8 @@
     "lat": 47.408,
     "lon": 32.438,
     "address": "вул. Героїв Небесної сотні, 42",
-    "productCount": 4207,
-    "updated": "2026-11-12"
+    "productCount": 4219,
+    "updated": "2026-11-13"
   },
   {
     "slug": "balta",
@@ -348,7 +348,7 @@
     "lon": 29.623,
     "address": "вул. Любомирська, 246",
     "productCount": 3412,
-    "updated": "2026-11-12"
+    "updated": "2026-11-13"
   },
   {
     "slug": "hadiach",
@@ -356,8 +356,8 @@
     "lat": 50.367,
     "lon": 34.003,
     "address": "вул. Гетьманська, 13",
-    "productCount": 3543,
-    "updated": "2026-11-12"
+    "productCount": 3521,
+    "updated": "2026-11-13"
   },
   {
     "slug": "sarny",
@@ -365,8 +365,8 @@
     "lat": 51.338,
     "lon": 26.602,
     "address": "вул. Коперніка, буд. 3",
-    "productCount": 4153,
-    "updated": "2026-11-12"
+    "productCount": 4154,
+    "updated": "2026-11-13"
   },
   {
     "slug": "putyvl",
@@ -374,8 +374,8 @@
     "lat": 51.337,
     "lon": 33.87,
     "address": "просп. Іоана Путивльського, 36",
-    "productCount": 3311,
-    "updated": "2026-11-12"
+    "productCount": 3368,
+    "updated": "2026-11-13"
   },
   {
     "slug": "buchach",
@@ -383,8 +383,8 @@
     "lat": 49.063,
     "lon": 25.397,
     "address": "вул. Галицька, 10 г",
-    "productCount": 4190,
-    "updated": "2026-11-12"
+    "productCount": 4176,
+    "updated": "2026-11-13"
   },
   {
     "slug": "bohodukhiv",
@@ -392,8 +392,8 @@
     "lat": 50.165,
     "lon": 35.526,
     "address": "пл. Незалежності, 20",
-    "productCount": 3516,
-    "updated": "2026-11-12"
+    "productCount": 3502,
+    "updated": "2026-11-13"
   },
   {
     "slug": "chornobaivka",
@@ -401,8 +401,8 @@
     "lat": 46.697,
     "lon": 32.553,
     "address": "вул. Херсонська, 53а",
-    "productCount": 3142,
-    "updated": "2026-11-12"
+    "productCount": 3128,
+    "updated": "2026-11-13"
   },
   {
     "slug": "talne",
@@ -410,8 +410,8 @@
     "lat": 48.88,
     "lon": 30.703,
     "address": "вул. Соборна, 24",
-    "productCount": 3534,
-    "updated": "2026-11-12"
+    "productCount": 3543,
+    "updated": "2026-11-13"
   },
   {
     "slug": "khotyn",
@@ -419,8 +419,8 @@
     "lat": 48.506,
     "lon": 26.495,
     "address": "вул. Олімпійська, 62",
-    "productCount": 4337,
-    "updated": "2026-11-12"
+    "productCount": 4370,
+    "updated": "2026-11-13"
   },
   {
     "slug": "koriukivka",
@@ -428,8 +428,8 @@
     "lat": 51.77,
     "lon": 32.25,
     "address": "вул. Шевченка, 72 б",
-    "productCount": 3829,
-    "updated": "2026-11-12"
+    "productCount": 3808,
+    "updated": "2026-11-13"
   },
   {
     "slug": "starokostiantyniv",
@@ -437,8 +437,8 @@
     "lat": 49.756,
     "lon": 27.208,
     "address": "вул. Острозького, 2/1",
-    "productCount": 4177,
-    "updated": "2026-11-12"
+    "productCount": 4216,
+    "updated": "2026-11-13"
   },
   {
     "slug": "bar",
@@ -446,8 +446,8 @@
     "lat": 49.077,
     "lon": 27.683,
     "address": "вул. Сфорци Бони, буд. 8, прим. 1",
-    "productCount": 4083,
-    "updated": "2026-11-12"
+    "productCount": 4138,
+    "updated": "2026-11-13"
   },
   {
     "slug": "horokhiv",
@@ -455,8 +455,8 @@
     "lat": 50.499,
     "lon": 24.763,
     "address": "вул. Луцька, 21",
-    "productCount": 4083,
-    "updated": "2026-11-12"
+    "productCount": 4130,
+    "updated": "2026-11-13"
   },
   {
     "slug": "verkhniodniprovsk",
@@ -464,8 +464,8 @@
     "lat": 48.656,
     "lon": 34.334,
     "address": "просп. Шевченка, 19",
-    "productCount": 4164,
-    "updated": "2026-11-12"
+    "productCount": 4165,
+    "updated": "2026-11-13"
   },
   {
     "slug": "ovruch",
@@ -473,8 +473,8 @@
     "lat": 51.324,
     "lon": 28.81,
     "address": "вул. Тараса Шевченка, 33 а",
-    "productCount": 3736,
-    "updated": "2026-11-12"
+    "productCount": 3755,
+    "updated": "2026-11-13"
   },
   {
     "slug": "perechyn",
@@ -482,8 +482,8 @@
     "lat": 48.735,
     "lon": 22.476,
     "address": "пл. Незалежності, буд. 7",
-    "productCount": 3937,
-    "updated": "2026-11-12"
+    "productCount": 3949,
+    "updated": "2026-11-13"
   },
   {
     "slug": "horodenka",
@@ -491,8 +491,8 @@
     "lat": 48.667,
     "lon": 25.5,
     "address": "вул. Ринкова, буд. 6-Д",
-    "productCount": 4477,
-    "updated": "2026-11-12"
+    "productCount": 4462,
+    "updated": "2026-11-13"
   },
   {
     "slug": "tarashcha",
@@ -500,8 +500,8 @@
     "lat": 49.556,
     "lon": 30.502,
     "address": "вул. Хмельницького Богдана, буд. 51-Б",
-    "productCount": 3906,
-    "updated": "2026-11-12"
+    "productCount": 3895,
+    "updated": "2026-11-13"
   },
   {
     "slug": "haivoron",
@@ -509,8 +509,8 @@
     "lat": 48.333,
     "lon": 29.866,
     "address": "вул. Центральна, буд. 109",
-    "productCount": 3755,
-    "updated": "2026-11-12"
+    "productCount": 3823,
+    "updated": "2026-11-13"
   },
   {
     "slug": "skole",
@@ -518,8 +518,8 @@
     "lat": 49.037,
     "lon": 23.512,
     "address": "вул. Князя Святослава, буд. 3 В",
-    "productCount": 4269,
-    "updated": "2026-11-12"
+    "productCount": 4283,
+    "updated": "2026-11-13"
   },
   {
     "slug": "novyi-buh",
@@ -527,8 +527,8 @@
     "lat": 47.693,
     "lon": 32.513,
     "address": "вул. Захисників України, буд. 7",
-    "productCount": 3953,
-    "updated": "2026-11-12"
+    "productCount": 3964,
+    "updated": "2026-11-13"
   },
   {
     "slug": "artsyz",
@@ -536,8 +536,8 @@
     "lat": 45.993,
     "lon": 29.418,
     "address": "вул. Соборна, будинок 2А/1",
-    "productCount": 3338,
-    "updated": "2026-11-12"
+    "productCount": 3334,
+    "updated": "2026-11-13"
   },
   {
     "slug": "karlivka",
@@ -545,8 +545,8 @@
     "lat": 49.457,
     "lon": 35.13,
     "address": "вул. Успенська, 1/6",
-    "productCount": 3626,
-    "updated": "2026-11-12"
+    "productCount": 3633,
+    "updated": "2026-11-13"
   },
   {
     "slug": "berezne",
@@ -554,8 +554,8 @@
     "lat": 51,
     "lon": 26.747,
     "address": "вул. Андріївська, 46 б",
-    "productCount": 4119,
-    "updated": "2026-11-12"
+    "productCount": 4192,
+    "updated": "2026-11-13"
   },
   {
     "slug": "buryn",
@@ -563,8 +563,8 @@
     "lat": 51.2,
     "lon": 33.83,
     "address": "вул. Ринкова, 4/1",
-    "productCount": 3474,
-    "updated": "2026-11-12"
+    "productCount": 3468,
+    "updated": "2026-11-13"
   },
   {
     "slug": "borshchiv",
@@ -572,8 +572,8 @@
     "lat": 48.802,
     "lon": 26.04,
     "address": "вул. Бандери С., буд. 132",
-    "productCount": 4096,
-    "updated": "2026-11-12"
+    "productCount": 4087,
+    "updated": "2026-11-13"
   },
   {
     "slug": "zmiiv",
@@ -581,8 +581,8 @@
     "lat": 49.678,
     "lon": 36.354,
     "address": "вул. Донецька, 2, прим. 1",
-    "productCount": 3384,
-    "updated": "2026-11-12"
+    "productCount": 3386,
+    "updated": "2026-11-13"
   },
   {
     "slug": "chyhyryn",
@@ -590,8 +590,8 @@
     "lat": 49.081,
     "lon": 32.659,
     "address": "вул. Хмельницького Богдана, 27",
-    "productCount": 3634,
-    "updated": "2026-11-12"
+    "productCount": 3611,
+    "updated": "2026-11-13"
   },
   {
     "slug": "vyzhnytsia",
@@ -599,8 +599,8 @@
     "lat": 48.25,
     "lon": 25.188,
     "address": "вул. Українська, буд. 100, корп. 2",
-    "productCount": 4293,
-    "updated": "2026-11-12"
+    "productCount": 4351,
+    "updated": "2026-11-13"
   },
   {
     "slug": "mena",
@@ -608,8 +608,8 @@
     "lat": 51.523,
     "lon": 32.215,
     "address": "вул. Героїв АТО, 4 а",
-    "productCount": 3812,
-    "updated": "2026-11-12"
+    "productCount": 3835,
+    "updated": "2026-11-13"
   },
   {
     "slug": "uman",
@@ -617,8 +617,8 @@
     "lat": 48.75,
     "lon": 30.219,
     "address": "вул. Тищика, 6 а",
-    "productCount": 4126,
-    "updated": "2026-11-12"
+    "productCount": 4158,
+    "updated": "2026-11-13"
   },
   {
     "slug": "korsun-shevchenkivskyi",
@@ -626,8 +626,8 @@
     "lat": 49.418,
     "lon": 31.252,
     "address": "вул. Ярослава Мудрого, 59",
-    "productCount": 3619,
-    "updated": "2026-11-12"
+    "productCount": 3661,
+    "updated": "2026-11-13"
   },
   {
     "slug": "zhashkiv",
@@ -635,8 +635,8 @@
     "lat": 49.246,
     "lon": 30.099,
     "address": "вул. Миру, 7",
-    "productCount": 3967,
-    "updated": "2026-11-12"
+    "productCount": 3975,
+    "updated": "2026-11-13"
   },
   {
     "slug": "shpola",
@@ -644,8 +644,8 @@
     "lat": 49.013,
     "lon": 31.393,
     "address": "вул. Лозуватська, 56",
-    "productCount": 3727,
-    "updated": "2026-11-12"
+    "productCount": 3746,
+    "updated": "2026-11-13"
   },
   {
     "slug": "pryluky",
@@ -653,8 +653,8 @@
     "lat": 50.595,
     "lon": 32.384,
     "address": "вул. Київська, 291",
-    "productCount": 4587,
-    "updated": "2026-11-12"
+    "productCount": 4619,
+    "updated": "2026-11-13"
   },
   {
     "slug": "nizhyn",
@@ -663,7 +663,7 @@
     "lon": 31.888,
     "address": "вул. Шевченка, 120/3",
     "productCount": 3944,
-    "updated": "2026-11-12"
+    "updated": "2026-11-13"
   },
   {
     "slug": "novhorod-siverskyi",
@@ -671,8 +671,8 @@
     "lat": 52.007,
     "lon": 33.263,
     "address": "вул. Захисників України, буд. 1",
-    "productCount": 3810,
-    "updated": "2026-11-12"
+    "productCount": 3837,
+    "updated": "2026-11-13"
   },
   {
     "slug": "novodnistrovsk",
@@ -680,8 +680,8 @@
     "lat": 48.583,
     "lon": 27.437,
     "address": "мкрн. Діброва, буд. 25, прим. 2б",
-    "productCount": 3993,
-    "updated": "2026-11-12"
+    "productCount": 3998,
+    "updated": "2026-11-13"
   },
   {
     "slug": "sokyriany",
@@ -689,8 +689,8 @@
     "lat": 48.449,
     "lon": 27.411,
     "address": "вулиця Ольги Кобилянської, 23",
-    "productCount": 3963,
-    "updated": "2026-11-12"
+    "productCount": 4027,
+    "updated": "2026-11-13"
   },
   {
     "slug": "berehomet",
@@ -698,8 +698,8 @@
     "lat": 48.171,
     "lon": 25.33,
     "address": "вул. Центральна, буд. 171 Е",
-    "productCount": 4206,
-    "updated": "2026-11-12"
+    "productCount": 4211,
+    "updated": "2026-11-13"
   },
   {
     "slug": "nikopol",
@@ -707,8 +707,8 @@
     "lat": 47.568,
     "lon": 34.391,
     "address": "вул. Героїв Чорнобиля, 100 а",
-    "productCount": 3635,
-    "updated": "2026-11-12"
+    "productCount": 3662,
+    "updated": "2026-11-13"
   },
   {
     "slug": "pavlohrad",
@@ -716,8 +716,8 @@
     "lat": 48.532,
     "lon": 35.869,
     "address": "вул. Героїв України, 4 а",
-    "productCount": 4091,
-    "updated": "2026-11-12"
+    "productCount": 4102,
+    "updated": "2026-11-13"
   },
   {
     "slug": "mezhova",
@@ -726,7 +726,7 @@
     "lon": 36.732,
     "address": "просп. Незалежності, буд. 14, прим. 1",
     "productCount": 0,
-    "updated": "2026-11-12"
+    "updated": "2026-11-13"
   },
   {
     "slug": "kalynivka",
@@ -734,8 +734,8 @@
     "lat": 48.007,
     "lon": 37.854,
     "address": "вул. Незалежності, 7, прим. 52, прим. 54",
-    "productCount": 4161,
-    "updated": "2026-11-12"
+    "productCount": 4246,
+    "updated": "2026-11-13"
   },
   {
     "slug": "bolekhiv",
@@ -743,8 +743,8 @@
     "lat": 49.065,
     "lon": 23.86,
     "address": "пл. Івана Франка, буд. 1 А",
-    "productCount": 3743,
-    "updated": "2026-11-12"
+    "productCount": 3758,
+    "updated": "2026-11-13"
   },
   {
     "slug": "kolomyia",
@@ -752,8 +752,8 @@
     "lat": 48.525,
     "lon": 25.037,
     "address": "вул. Гетьмана Івана Мазепи, буд. 183/2",
-    "productCount": 4334,
-    "updated": "2026-11-12"
+    "productCount": 4348,
+    "updated": "2026-11-13"
   },
   {
     "slug": "kalush",
@@ -761,8 +761,8 @@
     "lat": 49.024,
     "lon": 24.372,
     "address": "вул. Грушевського, 99 а",
-    "productCount": 4453,
-    "updated": "2026-11-12"
+    "productCount": 4454,
+    "updated": "2026-11-13"
   },
   {
     "slug": "rohatyn",
@@ -770,8 +770,8 @@
     "lat": 49.41,
     "lon": 24.611,
     "address": "вул. Галицька, 92",
-    "productCount": 4248,
-    "updated": "2026-11-12"
+    "productCount": 4252,
+    "updated": "2026-11-13"
   },
   {
     "slug": "lozova",
@@ -779,8 +779,8 @@
     "lat": 48.891,
     "lon": 36.314,
     "address": "вул. Європейська, буд. 2/1",
-    "productCount": 3891,
-    "updated": "2026-11-12"
+    "productCount": 3894,
+    "updated": "2026-11-13"
   },
   {
     "slug": "berestyn",
@@ -788,8 +788,8 @@
     "lat": 49.378,
     "lon": 35.445,
     "address": "вул. Полтавська, буд. 91 г",
-    "productCount": 4090,
-    "updated": "2026-11-12"
+    "productCount": 4098,
+    "updated": "2026-11-13"
   },
   {
     "slug": "balakliia",
@@ -797,8 +797,8 @@
     "lat": 49.456,
     "lon": 36.844,
     "address": "вул. Володимира Целуйка, буд. 28",
-    "productCount": 3878,
-    "updated": "2026-11-12"
+    "productCount": 3900,
+    "updated": "2026-11-13"
   },
   {
     "slug": "kamianets-podilskyi",
@@ -806,8 +806,8 @@
     "lat": 48.679,
     "lon": 26.585,
     "address": "вул. Франка Івана, 40-Д, приміщення 1, 3",
-    "productCount": 4449,
-    "updated": "2026-11-12"
+    "productCount": 4464,
+    "updated": "2026-11-13"
   },
   {
     "slug": "shepetivka",
@@ -815,8 +815,8 @@
     "lat": 50.181,
     "lon": 27.065,
     "address": "вул. Захисників України, 85К, приміщ. (гр.приміщ.) 101",
-    "productCount": 5463,
-    "updated": "2026-11-12"
+    "productCount": 5497,
+    "updated": "2026-11-13"
   },
   {
     "slug": "letychiv",
@@ -824,8 +824,8 @@
     "lat": 49.38,
     "lon": 27.619,
     "address": "вул Юрія Савіцькго, буд. 31-Б",
-    "productCount": 4385,
-    "updated": "2026-11-12"
+    "productCount": 4392,
+    "updated": "2026-11-13"
   },
   {
     "slug": "oleksandriia",
@@ -833,8 +833,8 @@
     "lat": 48.675,
     "lon": 33.118,
     "address": "вул. Мазепи Гетьмана, буд. 19",
-    "productCount": 4169,
-    "updated": "2026-11-12"
+    "productCount": 4192,
+    "updated": "2026-11-13"
   },
   {
     "slug": "svitlovodsk",
@@ -842,8 +842,8 @@
     "lat": 49.063,
     "lon": 33.246,
     "address": "вул. Б. Хмельницького, 34",
-    "productCount": 3889,
-    "updated": "2026-11-12"
+    "productCount": 3912,
+    "updated": "2026-11-13"
   },
   {
     "slug": "dolynska",
@@ -851,8 +851,8 @@
     "lat": 48.117,
     "lon": 32.777,
     "address": "вул. Чкалова, 2",
-    "productCount": 3921,
-    "updated": "2026-11-12"
+    "productCount": 3950,
+    "updated": "2026-11-13"
   },
   {
     "slug": "slavutych",
@@ -860,8 +860,8 @@
     "lat": 51.523,
     "lon": 30.718,
     "address": "вул. Привокзальна, 7",
-    "productCount": 4206,
-    "updated": "2026-11-12"
+    "productCount": 4247,
+    "updated": "2026-11-13"
   },
   {
     "slug": "iahotyn",
@@ -869,8 +869,8 @@
     "lat": 50.275,
     "lon": 31.763,
     "address": "вул. Вокзальна, 9",
-    "productCount": 3829,
-    "updated": "2026-11-12"
+    "productCount": 3842,
+    "updated": "2026-11-13"
   },
   {
     "slug": "ivankiv",
@@ -878,8 +878,8 @@
     "lat": 50.94,
     "lon": 29.902,
     "address": "вул. Київська, 29",
-    "productCount": 4177,
-    "updated": "2026-11-12"
+    "productCount": 4180,
+    "updated": "2026-11-13"
   },
   {
     "slug": "sheptytskyi",
@@ -887,8 +887,8 @@
     "lat": 50.394,
     "lon": 24.239,
     "address": "вул. Сокальська, 11",
-    "productCount": 4327,
-    "updated": "2026-11-12"
+    "productCount": 4417,
+    "updated": "2026-11-13"
   },
   {
     "slug": "sambir",
@@ -896,8 +896,8 @@
     "lat": 49.516,
     "lon": 23.201,
     "address": "площа Ринок, 15",
-    "productCount": 4382,
-    "updated": "2026-11-12"
+    "productCount": 4388,
+    "updated": "2026-11-13"
   },
   {
     "slug": "stryi",
@@ -905,8 +905,8 @@
     "lat": 49.261,
     "lon": 23.848,
     "address": "вул. Шевченка Т., 72",
-    "productCount": 4420,
-    "updated": "2026-11-12"
+    "productCount": 4434,
+    "updated": "2026-11-13"
   },
   {
     "slug": "drohobych",
@@ -914,8 +914,8 @@
     "lat": 49.352,
     "lon": 23.511,
     "address": "вул. Лесі Українки, 14 а",
-    "productCount": 4672,
-    "updated": "2026-11-12"
+    "productCount": 4690,
+    "updated": "2026-11-13"
   },
   {
     "slug": "pervomaisk",
@@ -923,8 +923,8 @@
     "lat": 48.045,
     "lon": 30.848,
     "address": "вул. Михайла Грушевського, 33а",
-    "productCount": 4020,
-    "updated": "2026-11-12"
+    "productCount": 4041,
+    "updated": "2026-11-13"
   },
   {
     "slug": "voznesensk",
@@ -932,8 +932,8 @@
     "lat": 47.562,
     "lon": 31.336,
     "address": "вул. Будівельників, 7",
-    "productCount": 3492,
-    "updated": "2026-11-12"
+    "productCount": 3495,
+    "updated": "2026-11-13"
   },
   {
     "slug": "koblevo",
@@ -941,8 +941,8 @@
     "lat": 46.665,
     "lon": 31.208,
     "address": "вул. Одеська, 2/2",
-    "productCount": 3941,
-    "updated": "2026-11-12"
+    "productCount": 3944,
+    "updated": "2026-11-13"
   },
   {
     "slug": "izmail",
@@ -950,8 +950,8 @@
     "lat": 45.351,
     "lon": 28.838,
     "address": "просп. Незалежності, 54 а",
-    "productCount": 3513,
-    "updated": "2026-11-12"
+    "productCount": 3516,
+    "updated": "2026-11-13"
   },
   {
     "slug": "bilhorod-dnistrovskyi",
@@ -959,8 +959,8 @@
     "lat": 46.195,
     "lon": 30.348,
     "address": "вул. Ізмаїльська, 131",
-    "productCount": 3716,
-    "updated": "2026-11-12"
+    "productCount": 3733,
+    "updated": "2026-11-13"
   },
   {
     "slug": "rozdilna",
@@ -968,8 +968,8 @@
     "lat": 46.855,
     "lon": 30.071,
     "address": "пл. Привокзальна, 6",
-    "productCount": 3469,
-    "updated": "2026-11-12"
+    "productCount": 3483,
+    "updated": "2026-11-13"
   },
   {
     "slug": "reni",
@@ -977,8 +977,8 @@
     "lat": 45.454,
     "lon": 28.277,
     "address": "вул. Вознесенська, 171/1",
-    "productCount": 3643,
-    "updated": "2026-11-12"
+    "productCount": 3644,
+    "updated": "2026-11-13"
   },
   {
     "slug": "lubny",
@@ -986,8 +986,8 @@
     "lat": 50.014,
     "lon": 33,
     "address": "вул. Монастирська, 71 а",
-    "productCount": 4112,
-    "updated": "2026-11-12"
+    "productCount": 4121,
+    "updated": "2026-11-13"
   },
   {
     "slug": "myrhorod",
@@ -995,8 +995,8 @@
     "lat": 49.965,
     "lon": 33.609,
     "address": "вул. Гоголя, буд. 56",
-    "productCount": 4292,
-    "updated": "2026-11-12"
+    "productCount": 4296,
+    "updated": "2026-11-13"
   },
   {
     "slug": "varash",
@@ -1004,8 +1004,8 @@
     "lat": 51.34,
     "lon": 25.855,
     "address": "мкрн. Будівельників, 49",
-    "productCount": 3899,
-    "updated": "2026-11-12"
+    "productCount": 3947,
+    "updated": "2026-11-13"
   },
   {
     "slug": "dubno",
@@ -1013,8 +1013,8 @@
     "lat": 50.408,
     "lon": 25.762,
     "address": "вул. Д. Галицького, 9",
-    "productCount": 4295,
-    "updated": "2026-11-12"
+    "productCount": 4301,
+    "updated": "2026-11-13"
   },
   {
     "slug": "korets",
@@ -1022,8 +1022,8 @@
     "lat": 50.619,
     "lon": 27.158,
     "address": "Площа Київська, буд. 3",
-    "productCount": 3920,
-    "updated": "2026-11-12"
+    "productCount": 3929,
+    "updated": "2026-11-13"
   },
   {
     "slug": "rokytne",
@@ -1031,8 +1031,8 @@
     "lat": 51.279,
     "lon": 27.217,
     "address": "вул. Травнева, буд. 3 А",
-    "productCount": 3663,
-    "updated": "2026-11-12"
+    "productCount": 3685,
+    "updated": "2026-11-13"
   },
   {
     "slug": "shostka",
@@ -1040,8 +1040,8 @@
     "lat": 51.864,
     "lon": 33.473,
     "address": "вул. Свободи, 30",
-    "productCount": 3967,
-    "updated": "2026-11-12"
+    "productCount": 4035,
+    "updated": "2026-11-13"
   },
   {
     "slug": "okhtyrka",
@@ -1049,8 +1049,8 @@
     "lat": 50.309,
     "lon": 34.895,
     "address": "вул. Армійська, 89 б",
-    "productCount": 3626,
-    "updated": "2026-11-12"
+    "productCount": 3632,
+    "updated": "2026-11-13"
   },
   {
     "slug": "konotop",
@@ -1058,8 +1058,8 @@
     "lat": 51.233,
     "lon": 33.2,
     "address": "просп. Миру, 79",
-    "productCount": 3948,
-    "updated": "2026-11-12"
+    "productCount": 4000,
+    "updated": "2026-11-13"
   },
   {
     "slug": "kremenets",
@@ -1067,8 +1067,8 @@
     "lat": 50.099,
     "lon": 25.728,
     "address": "вул. Петлюри С., 4 Б",
-    "productCount": 4345,
-    "updated": "2026-11-12"
+    "productCount": 4352,
+    "updated": "2026-11-13"
   },
   {
     "slug": "berezhany",
@@ -1076,8 +1076,8 @@
     "lat": 49.446,
     "lon": 24.937,
     "address": "вул. Тернопільська, буд. 19 К",
-    "productCount": 3853,
-    "updated": "2026-11-12"
+    "productCount": 3872,
+    "updated": "2026-11-13"
   },
   {
     "slug": "chortkiv",
@@ -1085,8 +1085,8 @@
     "lat": 49.017,
     "lon": 25.798,
     "address": "вулиця Шевченка Тараса, 19 гр. нежитл. прим. 1-28/101-1/109/119/120-121/12",
-    "productCount": 4242,
-    "updated": "2026-11-12"
+    "productCount": 4243,
+    "updated": "2026-11-13"
   },
   {
     "slug": "iampil",
@@ -1094,8 +1094,8 @@
     "lat": 48.241,
     "lon": 28.281,
     "address": "вул. Соборна, 23/Замкова, 14",
-    "productCount": 3329,
-    "updated": "2026-11-12"
+    "productCount": 3381,
+    "updated": "2026-11-13"
   },
   {
     "slug": "pohrebyshche",
@@ -1103,8 +1103,8 @@
     "lat": 49.485,
     "lon": 29.26,
     "address": "вул. Богдана Хмельницького, буд. 87",
-    "productCount": 4102,
-    "updated": "2026-11-12"
+    "productCount": 4119,
+    "updated": "2026-11-13"
   },
   {
     "slug": "trostianets",
@@ -1112,8 +1112,8 @@
     "lat": 48.509,
     "lon": 29.227,
     "address": "вул. Соборна, буд. 50",
-    "productCount": 3941,
-    "updated": "2026-11-12"
+    "productCount": 3944,
+    "updated": "2026-11-13"
   },
   {
     "slug": "khmilnyk",
@@ -1121,8 +1121,8 @@
     "lat": 49.558,
     "lon": 27.957,
     "address": "вул. Соборності, 6 а",
-    "productCount": 3829,
-    "updated": "2026-11-12"
+    "productCount": 3847,
+    "updated": "2026-11-13"
   },
   {
     "slug": "novovolynsk",
@@ -1130,8 +1130,8 @@
     "lat": 50.729,
     "lon": 24.16,
     "address": "15-ий Мікрорайон, 19",
-    "productCount": 4366,
-    "updated": "2026-11-12"
+    "productCount": 4381,
+    "updated": "2026-11-13"
   },
   {
     "slug": "kovel",
@@ -1139,8 +1139,8 @@
     "lat": 51.215,
     "lon": 24.701,
     "address": "вул. Заводська, 16",
-    "productCount": 4473,
-    "updated": "2026-11-12"
+    "productCount": 4491,
+    "updated": "2026-11-13"
   },
   {
     "slug": "manevychi",
@@ -1148,8 +1148,8 @@
     "lat": 51.294,
     "lon": 25.531,
     "address": "вул. Луцька, буд. 11-А",
-    "productCount": 3496,
-    "updated": "2026-11-12"
+    "productCount": 3545,
+    "updated": "2026-11-13"
   },
   {
     "slug": "vynohradiv",
@@ -1157,8 +1157,8 @@
     "lat": 48.141,
     "lon": 23.036,
     "address": "вул. І. Франка, 127",
-    "productCount": 4176,
-    "updated": "2026-11-12"
+    "productCount": 4206,
+    "updated": "2026-11-13"
   },
   {
     "slug": "mukacheve",
@@ -1166,8 +1166,8 @@
     "lat": 48.442,
     "lon": 22.718,
     "address": "вул. Купальна, 14",
-    "productCount": 4322,
-    "updated": "2026-11-12"
+    "productCount": 4337,
+    "updated": "2026-11-13"
   },
   {
     "slug": "tiachiv",
@@ -1175,8 +1175,8 @@
     "lat": 48.011,
     "lon": 23.572,
     "address": "вул. Івана Франка, буд. 2",
-    "productCount": 4172,
-    "updated": "2026-11-12"
+    "productCount": 4205,
+    "updated": "2026-11-13"
   },
   {
     "slug": "berehove",
@@ -1184,8 +1184,8 @@
     "lat": 48.205,
     "lon": 22.645,
     "address": "вул. Мужайська, 54-а",
-    "productCount": 4156,
-    "updated": "2026-11-12"
+    "productCount": 4168,
+    "updated": "2026-11-13"
   },
   {
     "slug": "novooleksandrivka",
@@ -1193,8 +1193,8 @@
     "lat": 46.847,
     "lon": 35.382,
     "address": "вул. Телевізійна, 40",
-    "productCount": 3987,
-    "updated": "2026-11-12"
+    "productCount": 4005,
+    "updated": "2026-11-13"
   },
   {
     "slug": "zviahel",
@@ -1202,8 +1202,8 @@
     "lat": 50.591,
     "lon": 27.609,
     "address": "вул. Житомирська, 112",
-    "productCount": 4350,
-    "updated": "2026-11-12"
+    "productCount": 4357,
+    "updated": "2026-11-13"
   },
   {
     "slug": "berdychiv",
@@ -1211,8 +1211,8 @@
     "lat": 49.894,
     "lon": 28.582,
     "address": "вул. Житомирська, буд. 99-А",
-    "productCount": 3706,
-    "updated": "2026-11-12"
+    "productCount": 3708,
+    "updated": "2026-11-13"
   },
   {
     "slug": "korosten",
@@ -1220,7 +1220,7 @@
     "lat": 50.951,
     "lon": 28.639,
     "address": "вул. Героїв Чорнобиля, буд. 2",
-    "productCount": 3694,
-    "updated": "2026-11-12"
+    "productCount": 3775,
+    "updated": "2026-11-13"
   }
 ]
