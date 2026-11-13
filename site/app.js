@@ -310,19 +310,22 @@ const STORE_NOTE = {
 // Позначка на картці магазину (за замовчуванням — дві перші літери назви).
 const STORE_MARK = { megamarket: 'ММ', ekomarket: 'ЕМ', tavriav: 'ТВ' };
 const PIN = '<path d="M12 22s7-6.2 7-12a7 7 0 1 0-14 0c0 5.8 7 12 7 12Z"/><circle cx="12" cy="10" r="2.5"/>';
-function placeHtml() {
-  const slug = state.city.slug;
-  const stores = chainsIn(slug)
+// Картки магазинів міста slug (вибраний — chain).
+function storeCards(slug, chain) {
+  return chainsIn(slug)
     .map((c) => {
       const here = state.chainCities[c].find((x) => x.slug === slug);
       const sub = STORE_NOTE[c] || (here.from ? `Онлайн тут не продає — ціни з міста ${cityName(here.from)}` : here.address) || '';
-      return `<button type="button" class="store-card" data-chain="${c}" aria-pressed="${c === state.chain}">
+      return `<button type="button" class="store-card" data-chain="${c}" aria-pressed="${c === chain}">
           <span class="store-card__mark chain--${c}" aria-hidden="true">${esc(STORE_MARK[c] || CHAINS[c].replace(/[^\p{L}]/gu, '').slice(0, 2))}</span>
           <span class="store-card__text"><b>${esc(CHAINS[c])}</b>${sub ? `<small>${esc(sub)}</small>` : ''}</span>
           <svg class="store-card__check" viewBox="0 0 24 24" aria-hidden="true"><path d="m5 12.5 4.5 4.5L19 7.5"/></svg>
         </button>`;
     })
     .join('');
+}
+function placeHtml() {
+  const stores = storeCards(state.city.slug, state.chain);
   return `<section class="panel settings place">
       <div class="panel__head"><h2>${MULTI_CHAIN ? 'Місто і магазин' : 'Місто'}</h2></div>
       <div class="place__current"><svg viewBox="0 0 24 24" aria-hidden="true">${PIN}</svg><b>${esc(state.city.name)}</b>${MULTI_CHAIN ? `<span class="chain chain--${state.chain}">${esc(CHAINS[state.chain])}</span>` : ''}</div>
@@ -3276,6 +3279,116 @@ function route(e) {
   sync();
 }
 
+// ---------- Початковий екран ----------
+// З'являється при першому вході (місто ще не вибирали): що вміє сайт і вибір міста (у тесті — й магазину).
+// На локальній копії (localhost) його можна відкрити кнопкою в шапці.
+const LOCAL = ['localhost', '127.0.0.1', '[::1]'].includes(location.hostname);
+const WELCOME_FEATURES = [
+  ['<path d="M3 17l5-5 4 4 8-8"/><path d="M14 8h6v6"/>', 'Історія кожної ціни', 'Графік зміни ціни, найнижча й найвища ціна, усі подорожчання.'],
+  ['<path d="M12 9v4M12 17h.01"/><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z"/>', 'Чесні акції', 'Позначаємо знижки, де «ціну до акції» завищили перед акцією.'],
+  ['<path d="M7 7h11l-3-3M17 17H6l3 3"/>', 'Порівняння', MULTI_CHAIN ? 'Той самий товар в інших мережах і містах — де дешевше.' : 'Ціна того самого товару в інших містах — де дешевше.'],
+  ['<path d="M12 20.5s-7.6-4.7-9.4-9.6C1.4 7.6 3.6 4.5 7 4.5c2 0 3.5 1.1 5 3 1.5-1.9 3-3 5-3 3.4 0 5.6 3.1 4.4 6.4-1.8 4.9-9.4 9.6-9.4 9.6Z"/>', 'Обране й список покупок', 'Збережіть товари — побачите, коли вони подешевшають.'],
+];
+function openWelcome() {
+  document.querySelector('.welcome')?.remove();
+  let slug = state.city.slug;
+  let chain = state.chain;
+  const el = document.createElement('div');
+  el.className = 'welcome';
+  el.innerHTML = `<div class="welcome__box" role="dialog" aria-modal="true" aria-labelledby="welcomeTitle">
+      <button type="button" class="welcome__close" aria-label="Закрити"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg></button>
+      <div class="welcome__scroll">
+      <div class="welcome__hero">
+        <img src="icon.svg" alt="" width="64" height="64">
+        <h2 id="welcomeTitle">Жаба — історія цін у супермаркетах</h2>
+        <p>Щоб жаба не душила: дивіться, як змінюються ціни${MULTI_CHAIN ? ' в АТБ, Сільпо, Форі та інших мережах' : ' в АТБ'}, і купуйте вигідно.</p>
+      </div>
+      <ul class="welcome__features">${WELCOME_FEATURES.map(([icon, t, d]) => `<li><svg viewBox="0 0 24 24" aria-hidden="true">${icon}</svg><span><b>${t}</b>${d}</span></li>`).join('')}</ul>
+      <div class="welcome__place">
+        <h3>Ваше місто</h3>
+        <label class="place__search"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+          <input type="search" placeholder="Знайти місто" autocomplete="off" aria-label="Знайти місто"></label>
+        <div class="place__cities welcome__cities" role="listbox" aria-label="Місто"></div>
+        <div class="welcome__stores"${MULTI_CHAIN ? '' : ' hidden'}></div>
+      </div>
+      </div>
+      <div class="welcome__foot">
+        <span class="note">${MULTI_CHAIN ? 'Місто й магазин' : 'Місто'} можна змінити в налаштуваннях.</span>
+        <button type="button" class="btn btn--primary welcome__go">Почати</button>
+      </div>
+    </div>`;
+  document.body.append(el);
+  document.documentElement.classList.add('is-welcome');
+  const q = el.querySelector('input');
+  const list = el.querySelector('.welcome__cities');
+  const stores = el.querySelector('.welcome__stores');
+  const sorted = [...state.cities].sort((a, b) => a.name.localeCompare(b.name, 'uk'));
+  const paintStores = () => {
+    if (!MULTI_CHAIN) return;
+    if (!chainsIn(slug).includes(chain)) chain = 'atb';
+    stores.innerHTML = `<h3>Магазин у місті ${esc(cityName(slug))}</h3><div class="store-grid" role="group" aria-label="Магазин">${storeCards(slug, chain)}</div>`;
+  };
+  const paint = (center) => {
+    const words = norm(q.value).split(/\s+/).filter(Boolean);
+    const shown = sorted.filter((c) => words.every((w) => norm(c.name).includes(w)));
+    list.innerHTML = shown.length
+      ? shown.map((c) => `<button type="button" class="place__city" role="option" data-slug="${c.slug}" aria-selected="${c.slug === slug}">${esc(c.name)}</button>`).join('')
+      : '<p class="note">Такого міста немає</p>';
+    const sel = center && !words.length && list.querySelector('[aria-selected=true]');
+    if (sel) list.scrollTop = sel.offsetTop - list.clientHeight / 2 + sel.offsetHeight / 2;
+  };
+  const pick = (s) => {
+    slug = s;
+    for (const b of list.querySelectorAll('[data-slug]')) b.setAttribute('aria-selected', b.dataset.slug === slug);
+    paintStores();
+  };
+  const onKey = (e) => {
+    if (e.key === 'Escape') close(false);
+  };
+  const close = (apply) => {
+    store.set('welcomed', '1');
+    el.remove();
+    document.documentElement.classList.remove('is-welcome');
+    removeEventListener('keydown', onKey);
+    if (apply) setPlace(slug, chain);
+  };
+  addEventListener('keydown', onKey);
+  q.oninput = () => paint(false);
+  q.onkeydown = (e) => {
+    const first = list.querySelector('[data-slug]');
+    if (e.key === 'Enter' && first) pick(first.dataset.slug);
+  };
+  list.onclick = (e) => {
+    const b = e.target.closest('[data-slug]');
+    if (b) pick(b.dataset.slug);
+  };
+  stores.onclick = (e) => {
+    const b = e.target.closest('[data-chain]');
+    if (!b) return;
+    chain = b.dataset.chain;
+    for (const x of stores.querySelectorAll('[data-chain]')) x.setAttribute('aria-pressed', x === b);
+  };
+  el.querySelector('.welcome__close').onclick = () => close(false);
+  el.querySelector('.welcome__go').onclick = () => close(true);
+  el.onclick = (e) => {
+    if (e.target === el) close(false);
+  };
+  paint(true);
+  paintStores();
+  el.querySelector('.welcome__go').focus({ preventScroll: true });
+}
+if (LOCAL) {
+  const b = document.createElement('button');
+  b.type = 'button';
+  b.className = 'fav-link';
+  b.id = 'welcomeBtn';
+  b.title = 'Початковий екран (лише на локальній копії)';
+  b.setAttribute('aria-label', 'Початковий екран');
+  b.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 11.5 12 4l9 7.5"/><path d="M5.5 9.5V20h13V9.5"/><path d="M10 20v-5h4v5"/></svg>';
+  b.onclick = () => state.city && openWelcome();
+  $('#settingsLink').before(b);
+}
+
 app.innerHTML = skeleton();
 loadCities()
   .then(loadData)
@@ -3285,6 +3398,7 @@ loadCities()
     addEventListener('hashchange', route);
     route();
     favToast();
+    if (!store.get('welcomed') && !store.get('city')) openWelcome();
   })
   .catch((err) => {
     console.error(err);
