@@ -1129,7 +1129,7 @@ function bindFilters() {
     if (isHome()) location.hash = '#/all';
   });
   const scan = $('#scanBtn');
-  if (scan && navigator.mediaDevices?.getUserMedia) {
+  if (scan) {
     scan.hidden = false;
     scan.onclick = (e) => {
       e.preventDefault();
@@ -1196,15 +1196,39 @@ async function lookupBarcode(q) {
   return { hits, name: entry?.n || '' };
 }
 
-// Сканер штрихкоду камерою: вбудований BarcodeDetector (Chrome, Android), інакше — бібліотека ZXing (Safari, iPhone).
+// Сканер штрихкоду: живе зображення з камери в сторінці (браузер дає сайту лише потік із камери — нічого не записується),
+// або знімок штрихкоду звичайною камерою телефону («Сфотографувати»: її автофокус краще бере дрібні штрихкоди).
+// Розпізнає вбудований BarcodeDetector (Chrome, Android), інакше — бібліотека ZXing (Safari, iPhone).
 const SCAN_FORMATS = ['ean_13', 'ean_8', 'upc_a', 'upc_e'];
+const ZXING = 'https://cdn.jsdelivr.net/npm/@zxing/browser@0.1.5/+esm';
+const hasDetector = async () => 'BarcodeDetector' in window && (await BarcodeDetector.getSupportedFormats().catch(() => [])).includes('ean_13');
+// Задня камера з високою роздільністю (щоб штрихкод читався з відстані, коли камера близько не фокусується).
+const CAMERA = { video: { facingMode: { ideal: 'environment' }, width: { ideal: 1920 }, height: { ideal: 1080 } } };
+async function decodePhoto(file) {
+  if (await hasDetector()) {
+    const codes = await new BarcodeDetector({ formats: SCAN_FORMATS }).detect(await createImageBitmap(file));
+    return codes[0]?.rawValue || null;
+  }
+  const { BrowserMultiFormatReader } = await import(ZXING);
+  const url = URL.createObjectURL(file);
+  try {
+    return (await new BrowserMultiFormatReader().decodeFromImageUrl(url)).getText();
+  } catch {
+    return null;
+  } finally {
+    URL.revokeObjectURL(url);
+  }
+}
 async function openScanner() {
   const box = document.createElement('div');
   box.className = 'scanner';
   box.innerHTML = `<div class="scanner__box"><div class="scanner__view"><video playsinline muted></video><div class="scanner__frame"></div></div>
-      <p class="scanner__note">Наведіть камеру на штрихкод товару</p><button type="button" class="btn scanner__close">Закрити</button></div>`;
+      <p class="scanner__note">Наведіть камеру на штрихкод товару</p>
+      <div class="scanner__actions"><label class="btn scanner__photo">Сфотографувати<input type="file" accept="image/*" capture="environment" hidden></label>
+      <button type="button" class="btn scanner__close">Закрити</button></div></div>`;
   document.body.append(box);
   const video = box.querySelector('video');
+  const note = box.querySelector('.scanner__note');
   let stream = null;
   let stop = () => {};
   const close = () => {
@@ -1218,9 +1242,22 @@ async function openScanner() {
     $('#q').value = code;
     $('#q').dispatchEvent(new Event('input'));
   };
+  box.querySelector('.scanner__photo input').onchange = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    note.textContent = 'Читаю штрихкод…';
+    const code = await decodePhoto(file).catch(() => null);
+    if (code) return found(code);
+    note.textContent = 'На знімку не вдалося прочитати штрихкод. Сфотографуйте ближче й рівніше, щоб штрихкод був різким, або введіть цифри в пошук.';
+    e.target.value = '';
+  };
   try {
-    if ('BarcodeDetector' in window && (await BarcodeDetector.getSupportedFormats()).includes('ean_13')) {
-      stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
+    if (!navigator.mediaDevices?.getUserMedia) throw new Error('браузер не дає доступу до камери');
+    if (await hasDetector()) {
+      stream = await navigator.mediaDevices.getUserMedia(CAMERA);
+      // Безперервний автофокус, якщо камера вміє (інакше близький штрихкод лишається розмитим).
+      const track = stream.getVideoTracks()[0];
+      if (track?.getCapabilities?.().focusMode?.includes('continuous')) track.applyConstraints({ advanced: [{ focusMode: 'continuous' }] }).catch(() => {});
       video.srcObject = stream;
       await video.play();
       const det = new BarcodeDetector({ formats: SCAN_FORMATS });
@@ -1234,14 +1271,15 @@ async function openScanner() {
       };
       tick();
     } else {
-      const { BrowserMultiFormatReader } = await import('https://cdn.jsdelivr.net/npm/@zxing/browser@0.1.5/+esm');
-      const controls = await new BrowserMultiFormatReader().decodeFromConstraints({ video: { facingMode: 'environment' } }, video, (res) => {
+      const { BrowserMultiFormatReader } = await import(ZXING);
+      const controls = await new BrowserMultiFormatReader().decodeFromConstraints(CAMERA, video, (res) => {
         if (res) found(res.getText());
       });
       stop = () => controls.stop();
     }
   } catch (err) {
-    box.querySelector('.scanner__note').textContent = `Камера недоступна: ${err.message || err}. Можна ввести цифри штрихкоду в пошук.`;
+    box.querySelector('.scanner__view').hidden = true;
+    note.textContent = `Камера в сторінці недоступна (${err.message || err}). Сфотографуйте штрихкод або введіть його цифри в пошук.`;
   }
 }
 
