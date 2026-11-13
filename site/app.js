@@ -3300,8 +3300,8 @@ function openWelcome() {
       <div class="welcome__scroll">
       <div class="welcome__hero">
         <img src="icon.svg" alt="" width="64" height="64">
-        <h2 id="welcomeTitle">Жаба — історія цін у супермаркетах</h2>
-        <p>Щоб жаба не душила: дивіться, як змінюються ціни${MULTI_CHAIN ? ' в АТБ, Сільпо, Форі та інших мережах' : ' в АТБ'}, і купуйте вигідно.</p>
+        <h2 id="welcomeTitle">Жаба — трекер цін у супермаркетах</h2>
+        <p>Щоб жаба не душила: стежте за цінами${MULTI_CHAIN ? ' в АТБ, Сільпо, Форі та інших мережах' : ' в АТБ'}, перевіряйте, чи чесні акції, і купуйте вигідно.</p>
       </div>
       <ul class="welcome__features">${WELCOME_FEATURES.map(([icon, t, d]) => `<li><svg viewBox="0 0 24 24" aria-hidden="true">${icon}</svg><span><b>${t}</b>${d}</span></li>`).join('')}</ul>
       <div class="welcome__place">
@@ -3326,7 +3326,7 @@ function openWelcome() {
   const paintStores = () => {
     if (!MULTI_CHAIN) return;
     if (!chainsIn(slug).includes(chain)) chain = 'atb';
-    stores.innerHTML = `<h3>Магазин у місті ${esc(cityName(slug))}</h3><div class="store-grid" role="group" aria-label="Магазин">${storeCards(slug, chain)}</div>`;
+    stores.innerHTML = `<h3>Ваш основний магазин</h3><div class="store-grid" role="group" aria-label="Магазин">${storeCards(slug, chain)}</div>`;
   };
   const paint = (center) => {
     const words = norm(q.value).split(/\s+/).filter(Boolean);
