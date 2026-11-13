@@ -2326,7 +2326,22 @@ const sameKind = (a, b) => {
   }
   const va = variantsOf(a);
   const vb = variantsOf(b);
-  return !(va && vb && va !== vb);
+  if (!va || !vb || va === vb) return true;
+  // Смаки різні. Виняток: в одній назві смаків менше, але всі вони є в іншій, бренд той самий, а коротша назва вся
+  // вміщається в довшу — «Шоколад з цілим горіхом 300г «MILKA»» і «Шоколад 300г Milka з цілими лісовими горіхами,
+  // молочною та карамельною начинками»: просто одна назва докладніша.
+  // Зайвий смак докладнішої назви — лише в начинці (поруч зі словом «начинка»): «з цілими горіхами … та карамельною
+  // начинками». Інакше це інший смак: «Нектар Яблуко» і «Нектар Яблуко-виноград».
+  const A = va.split(' ');
+  const B = vb.split(' ');
+  const [less, more, moreP] = A.length < B.length ? [A, B, b] : [B, A, a];
+  if (!less.every((x) => more.includes(x)) || !sameBrand(a, b) || !nested(a, b)) return false;
+  const words = norm(moreP.name).split(/[^a-zа-яіїєґ]+/).filter(Boolean).map(cyr);
+  return more
+    .filter((x) => !less.includes(x))
+    .every((v) =>
+      words.some((w, i) => VARIANTS.find(([pre]) => w.startsWith(pre))?.[1] === v && words.slice(Math.max(0, i - 2), i + 3).some((n) => n.startsWith('начин'))),
+    );
 };
 // Та сама фасовка: вага, об'єм чи кількість однакові (до 3%) або обидва товари вагові.
 const sameSize = (a, b) => {
