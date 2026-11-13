@@ -1134,18 +1134,11 @@ const perSorter = (unit) => (a, b) => {
 // ---------- Пошук за штрихкодом ----------
 // data/barcodes/NN.json (NN — дві останні цифри): штрихкод → { n: назва, r: [z<номер> | f<код>] } — товари мереж
 // zakaz.ua і групи Fozzy (будує scraper/barcodes.js). АТБ і Грош штрихкодів не публікують: їхній товар шукаємо
-// за назвою (той самий товар — за назвою й фасовкою, autoMatch). На основному сайті — лише АТБ.
+// за назвою (той самий товар — за фасовкою й назвою, bestMatch). На основному сайті — лише АТБ.
 const isBarcode = (q) => /^\d{8,14}$/.test(q.trim());
 // Найсхожий товар мережі chain за назвою (sample — { name }), якщо це той самий товар.
 function sameByName(sample, chain) {
-  let best = null;
-  let top = 0;
-  for (const x of state.all) {
-    if (chainOf(x) !== chain) continue;
-    const sc = matchScore(sample, x);
-    if (sc > top && autoMatch(sample, x, sc)) [best, top] = [x, sc];
-  }
-  return best;
+  return bestMatch(sample, state.all.filter((x) => chainOf(x) === chain));
 }
 async function lookupBarcode(q) {
   const code = q.trim().replace(/^0+/, '');
@@ -2234,7 +2227,11 @@ const MATCH_STOP = new Set(
 const LAT_CYR = { sh: 'ш', ch: 'ч', kh: 'х', zh: 'ж', ts: 'ц', ya: 'я', yu: 'ю', a: 'а', b: 'б', c: 'к', d: 'д', e: 'е', f: 'ф', g: 'г', h: 'х', i: 'і', j: 'й', k: 'к', l: 'л', m: 'м', n: 'н', o: 'о', p: 'п', q: 'к', r: 'р', s: 'с', t: 'т', u: 'у', v: 'в', w: 'в', x: 'кс', y: 'і', z: 'з' };
 const cyr = (w) => (/[a-z]/.test(w) ? w.replace(/sh|ch|kh|zh|ts|ya|yu|[a-z]/g, (m) => LAT_CYR[m]) : w);
 // Без закінчень відмінків: «цілими», «цілий», «цілим» — одне слово (далі беремо лише початок слова).
-const stem = (w) => w.replace(/(ими|ами|ями|ого|ому|ою|ею|ий|ій|им|ім|их|іх|ої|ом|ем|ам|ям|ах|ях|ая|яя|ее|ие|ые|а|я|у|ю|і|и|о|е|ь)$/, (m, e, i) => (i >= 3 ? '' : m));
+const STEM_ENDS = 'ими ами ями ого ому ою ею ий ій им ім их іх ої ом ем ам ям ах ях ая яя ее ие ые а я у ю і и о е ь'.split(' ');
+const stem = (w) => {
+  for (const e of STEM_ENDS) if (w.length - e.length >= 3 && w.endsWith(e)) return w.slice(0, -e.length);
+  return w;
+};
 const matchWords = (p) =>
   (p._w ||= new Set(
     norm(p.name)
@@ -2293,9 +2290,9 @@ const variantsOf = (p) =>
   ]
     .sort()
     .join(' '));
-const autoMatch = (a, b, score) => {
-  const qa = qtyOf(a);
-  const qb = qtyOf(b);
+// Чи може це бути той самий товар (без оцінки назви й фасовки): жирність чи міцність, «в асортименті», кількість штук,
+// витримка, смак.
+const sameKind = (a, b) => {
   const pa = pctOf(a);
   const pb = pctOf(b);
   if (pa && pb && +pa !== +pb) return false;
@@ -2308,8 +2305,60 @@ const autoMatch = (a, b, score) => {
   }
   const va = variantsOf(a);
   const vb = variantsOf(b);
-  if (va && vb && va !== vb) return false;
-  return score >= MATCH_AUTO && (qa && qb ? sameQty(qa, qb) : !qa && !qb && a.unit === b.unit);
+  return !(va && vb && va !== vb);
+};
+// Та сама фасовка: вага, об'єм чи кількість однакові (до 3%) або обидва товари вагові.
+const sameSize = (a, b) => {
+  const qa = qtyOf(a);
+  const qb = qtyOf(b);
+  return qa && qb ? sameQty(qa, qb) : !qa && !qb && a.unit === b.unit;
+};
+// Той самий товар іншої мережі (list — її товари): спершу — товари того самого розділу й тієї самої фасовки,
+// серед них — найсхожіший за назвою. Фасовка вже звузила вибір, тож досить оцінки MATCH_QTY, якщо найкращий помітно
+// схожіший за наступного (MATCH_GAP); вагові товари (фасовки немає) — лише з високою оцінкою MATCH_AUTO.
+const MATCH_QTY = 0.7;
+const MATCH_GAP = 0.1;
+function bestMatch(p, list) {
+  let best = null;
+  let top = -Infinity;
+  let second = -Infinity;
+  for (const x of list) {
+    if ((p.group && x.group && x.group !== p.group) || !sameSize(p, x) || !sameKind(p, x)) continue;
+    const sc = matchScore(p, x);
+    if (sc > top) [second, top, best] = [top, sc, x];
+    else if (sc > second) second = sc;
+  }
+  if (!best || top >= MATCH_AUTO) return best;
+  // Нижча оцінка — лише коли бренд той самий, смак однаковий (або не названий в жодній назві), а коротша назва вся
+  // вміщається в довшу: «Ром Spiced Gold Captain Morgan» і «Напій Captain Morgan Original Spiced Gold на основі рому» —
+  // так; «Кава Nescafe Gold» і «Кава Nescafe Classic» — ні (у кожній є слово, якого немає в іншій).
+  return qtyOf(p) && top >= MATCH_QTY && top - second >= MATCH_GAP && sameBrand(p, best) && variantsOf(p) === variantsOf(best) && nested(p, best) ? best : null;
+}
+const nested = (a, b) => {
+  const wa = matchWords(a);
+  const wb = matchWords(b);
+  return [...wa].every((w) => wb.has(w)) || [...wb].every((w) => wa.has(w));
+};
+// Бренд для порівняння: поле brand, а якщо його немає (Грош) — назва в лапках у кінці («… 300г «MILKA»»).
+const brandKey = (p) => {
+  if (p._bk === undefined) {
+    // (лише коли перед лапками є фасовка чи інші лапки: «Сигарети «Kent Silver»» — це назва, а не бренд)
+    const m = p.brand ? null : p.name.match(/^(.*\S)\s*[«"]([^«»"]+)[»"]\s*$/);
+    const b = p.brand || (m && /\d|»/.test(m[1]) ? m[2] : null);
+    p._bk = b ? stem(cyr(norm(b).replace(/[«»"]/g, '').trim().split(/\s+/)[0])).slice(0, 5) : null;
+  }
+  return p._bk;
+};
+// Той самий бренд: однаковий або бренд одного товару є в назві іншого (крім першого слова — це тип товару:
+// «Молоко …» і бренд «Молокія»).
+const restWords = (p) => {
+  const first = stem(cyr(norm(p.name).split(/[^a-zа-яіїєґ']+/).find(Boolean) || '')).slice(0, 5);
+  return [...matchWords(p)].filter((w) => w !== first);
+};
+const sameBrand = (a, b) => {
+  const ba = brandKey(a);
+  const bb = brandKey(b);
+  return Boolean((ba && bb && ba === bb) || (bb && restWords(a).includes(bb)) || (ba && restWords(b).includes(ba)));
 };
 function matchScore(a, b) {
   const wa = matchWords(a);
@@ -2328,8 +2377,8 @@ function matchScore(a, b) {
   // («Lay's зі смаком реберець» і «Lay's зі смаком сиру»).
   s -= (0.8 * Math.min(sa - common, sb - common)) / Math.sqrt(sa * sb);
   // Бренд: однаковий — плюс; різні (і бренду одного немає в назві другого) — це інший товар.
-  const ba = a.brand && stem(cyr(norm(a.brand))).slice(0, 5);
-  const bb = b.brand && stem(cyr(norm(b.brand))).slice(0, 5);
+  const ba = brandKey(a);
+  const bb = brandKey(b);
   // (В овочах і фруктах «бренд» в АТБ — країна походження, тож різниця там нічого не каже.)
   if (ba && bb) s += ba === bb ? 0.2 : wa.has(bb) || wb.has(ba) || a.group === 'Овочі та фрукти' ? 0 : -0.3;
   // Бренд лише в одного (Фора, Грош його не дають), але він є в назві другого — так само той самий бренд.
@@ -2522,9 +2571,9 @@ function renderChainVs(el, p) {
 }
 
 // ---------- ТЕСТ: акції «Траш!» ----------
-// Артикул «Траш!» = код товару Сільпо, тож товар Сільпо знаходимо точно; товар АТБ — за назвою й фасовкою (autoMatch).
+// Артикул «Траш!» = код товару Сільпо, тож товар Сільпо знаходимо точно; товар АТБ — за фасовкою й назвою (bestMatch).
 // Такий самий товар іншої мережі: Сільпо ↔ «Траш!» — за кодом (артикул «Траш!» = код Сільпо), решта — за назвою
-// й фасовкою (autoMatch) у тому самому розділі. Пару, яку користувач вибрав чи вимкнув у «Порівнянні» на сторінці
+// й фасовкою (bestMatch) у тому самому розділі. Пару, яку користувач вибрав чи вимкнув у «Порівнянні» на сторінці
 // товару (pairs), беремо як є. Пари рахуємо раз на місто (state.all змінюється з містом) — плиток сотні.
 let peersFor = null;
 let peers = new Map();
@@ -2566,14 +2615,7 @@ function peerOf(p, chain) {
   if (peers.has(key)) return peers.get(key);
   let best = null;
   if (FAMILY[mine] && FAMILY[mine] === FAMILY[chain]) best = state.byId.get(p.id - ID_BASE[mine] + ID_BASE[chain]) || null;
-  else {
-    let top = 0;
-    for (const x of chain === 'thrash' ? state.thrash : state.all) {
-      if (chainOf(x) !== chain || x.from || (p.group && x.group && x.group !== p.group)) continue;
-      const sc = matchScore(p, x);
-      if (sc > top && autoMatch(p, x, sc)) [best, top] = [x, sc];
-    }
-  }
+  else best = bestMatch(p, (chain === 'thrash' ? state.thrash : state.all).filter((x) => chainOf(x) === chain && !x.from));
   peers.set(key, best);
   return best;
 }
