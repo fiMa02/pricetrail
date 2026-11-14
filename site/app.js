@@ -3196,6 +3196,7 @@ function route(e) {
   const onCart = location.hash === '#/list';
   const onStats = location.hash === '#/stats';
   const tab = onFavs ? 'fav' : onCart ? 'list' : onStats ? 'stats' : onSettings ? 'settings' : isHome() || location.hash.startsWith('#/today') ? 'home' : '';
+  document.body.dataset.tab = tab; // на телефоні сторінки з нижньої панелі — без кнопки «назад» (style.css)
   for (const a of document.querySelectorAll('#tabbar a')) {
     if (a.dataset.tab === tab) a.setAttribute('aria-current', 'page');
     else a.removeAttribute('aria-current');
