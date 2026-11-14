@@ -984,3 +984,8 @@ html.is-welcome { overflow: hidden; }
 .stats-empty { display: none; }
 #app:not(:has(.home-map)) .stats-empty { display: block; }
 .stats-title { margin-top: 20px; }
+/* Телефон: сторінки з нижньої панелі відкриваються з неї — кнопка «назад» зайва */
+@media (max-width: 720px) {
+  body:is([data-tab="fav"], [data-tab="list"], [data-tab="settings"]) #app > .back { display: none; }
+  body:is([data-tab="fav"], [data-tab="list"], [data-tab="settings"]) #app > .back + .page-title { margin-top: 20px; }
+}
