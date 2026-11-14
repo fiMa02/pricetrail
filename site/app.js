@@ -674,6 +674,8 @@ function updateFavBadge() {
   const el = $('#favN');
   el.textContent = n;
   el.hidden = !n;
+  $('#tabFavN').textContent = n;
+  $('#tabFavN').hidden = !n;
   $('#favLink').setAttribute('aria-label', n ? `Обране: подешевшало ${n}` : 'Обране');
 }
 
@@ -835,6 +837,8 @@ function updateCartBadge() {
   const el = $('#cartN');
   el.textContent = n;
   el.hidden = !n;
+  $('#tabCartN').textContent = n;
+  $('#tabCartN').hidden = !n;
   $('#cartLink').setAttribute('aria-label', n ? `Список покупок: ${n}` : 'Список покупок');
 }
 
@@ -1461,6 +1465,8 @@ const BETA = (() => {
   if (v != null) store.set('beta', v === '0' ? '0' : '1');
   return store.get('beta') !== '0';
 })();
+// Телефон: розділи — у нижній панелі (#tabbar), мапа рівня цін — на сторінці «Статистика» (#/stats).
+const PHONE_NAV = matchMedia('(max-width: 720px)');
 const isHome = () => BETA && (location.hash === '' || location.hash === '#/' || location.hash === '#');
 const HOME_BLOCK = 8;
 
@@ -1818,6 +1824,16 @@ async function renderHomeMap(el) {
   });
 }
 
+function renderStatsPage() {
+  document.querySelector('.top').classList.add('is-product');
+  document.title = 'Статистика — Жаба';
+  scrollTo(0, 0);
+  app.innerHTML = `<h1 class="page-title stats-title">Статистика</h1>
+    <section class="panel home-map" id="homeMap"><div class="sk" style="height:320px;border-radius:12px"></div></section>
+    <div class="empty stats-empty"><b>🗺️</b>Для мережі ${esc(CHAINS[state.chain] || '')} мапи рівня цін поки немає<br><span class="note">Ціни в усіх її містах однакові або ми збираємо лише одне місто</span></div>`;
+  renderHomeMap($('#homeMap'));
+}
+
 function renderHome() {
   const top = document.querySelector('.top');
   top.classList.remove('is-product');
@@ -1836,7 +1852,8 @@ function renderHome() {
             .join('')}</div></section>`
       : '';
   // Мапа рівня цін — для мереж з повним каталогом; у «Траш!» лише акції, тож мапи немає.
-  const map = state.chain === 'thrash' ? '' : '<section class="panel home-map" id="homeMap"><div class="sk" style="height:320px;border-radius:12px"></div></section>';
+  // На телефоні мапа — на окремій сторінці «Статистика» (нижня панель).
+  const map = state.chain === 'thrash' || PHONE_NAV.matches ? '' : '<section class="panel home-map" id="homeMap"><div class="sk" style="height:320px;border-radius:12px"></div></section>';
   if (!tabs.length) {
     app.innerHTML = `${map}
       ${offers || `<div class="empty"><b>😌</b>${d ? 'Сьогодні ціни не змінилися' : 'Змін поки немає'}<br><span class="note">Знайдіть товар через пошук угорі</span></div>${all}`}`;
@@ -3223,7 +3240,7 @@ let favFromBack = '#/';
 const backLink = (to = backTo) => {
   const p = to.startsWith('#/p/') && state.byId.get(parseInt(to.slice(4), 10));
   const name = p && (p.name.length > 40 ? `${p.name.slice(0, 38).trim()}…` : p.name);
-  const label = p ? name : to.startsWith('#/today') ? 'Що змінилося' : to === '#/fav' ? 'Обране' : to === '#/list' ? 'Список покупок' : to === '#/settings' ? 'Налаштування' : BETA && to !== '#/all' ? 'Головна' : 'Усі товари';
+  const label = p ? name : to.startsWith('#/today') ? 'Що змінилося' : to === '#/fav' ? 'Обране' : to === '#/list' ? 'Список покупок' : to === '#/settings' ? 'Налаштування' : to === '#/stats' ? 'Статистика' : BETA && to !== '#/all' ? 'Головна' : 'Усі товари';
   return `<a class="back" href="${esc(to)}">← ${esc(label)}</a>`;
 };
 
@@ -3247,6 +3264,12 @@ function route(e) {
   if (onSettings) $('#settingsLink').setAttribute('aria-current', 'page');
   else $('#settingsLink').removeAttribute('aria-current');
   const onCart = location.hash === '#/list';
+  const onStats = location.hash === '#/stats';
+  const tab = onFavs ? 'fav' : onCart ? 'list' : onStats ? 'stats' : onSettings ? 'settings' : isHome() || location.hash.startsWith('#/today') ? 'home' : '';
+  for (const a of document.querySelectorAll('#tabbar a')) {
+    if (a.dataset.tab === tab) a.setAttribute('aria-current', 'page');
+    else a.removeAttribute('aria-current');
+  }
   // «Назад» зі списку покупок — туди, звідки його відкрили (але не на товар, відкритий зі списку).
   if (onCart && from && from !== '#/list' && !(from.startsWith('#/p/') && backTo === '#/list')) cartFrom = from;
   if (onCart) $('#cartLink').setAttribute('aria-current', 'page');
@@ -3261,6 +3284,7 @@ function route(e) {
       else if (isHome()) renderHome();
       else if (onFavs) renderFavs();
       else if (onSettings) renderSettings();
+      else if (onStats) renderStatsPage();
       else if (onCart) {
         scrollTo(0, 0);
         renderCart();
