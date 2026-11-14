@@ -824,6 +824,9 @@ th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--lin
 
 /* Порівняння з іншими мережами: вкладки мереж */
 .vs-head .panel__head { flex-wrap: wrap; gap: 8px 16px; }
+.vs-tabs { flex-wrap: wrap; max-width: 100%; border-radius: 16px; }
+.vs-tabs button { white-space: nowrap; border-radius: 999px; }
+@media (max-width: 520px) { .vs-tabs { display: flex; width: 100%; } .vs-tabs button { flex: 1 1 auto; padding: 6px 10px; } }
 .vs-tabs button small { margin-left: 4px; font-weight: 700; font-variant-numeric: tabular-nums; }
 .vs-tabs .good { color: var(--good); }
 .vs-tabs .bad { color: var(--sale); }
