@@ -27,23 +27,14 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Onest:wght@400;500;600;700;800&display=swap">
-  <link rel="stylesheet" href="style.css?v=107">
+  <link rel="stylesheet" href="style.css?v=108">
 </head>
 <body>
   <header class="top">
     <div class="wrap top__row">
       <a href="#/" class="logo" aria-label="Жаба — на головну"><img src="icon.svg" alt="" width="32" height="32"><span><b>Жаба</b><small>щоб жаба не душила</small></span></a>
       <div class="top__actions">
-        <select id="chainSel" class="chain-pick" aria-label="Мережа" hidden><option value="atb">АТБ</option><option value="silpo">Сільпо</option><option value="fora">Фора</option><option value="thrash">Траш!</option><option value="metro">Метро</option><option value="auchan">Ашан</option><option value="novus">Новус</option><option value="tavriav">Таврія В</option><option value="megamarket">МегаМаркет</option><option value="ekomarket">ЕкоМаркет</option><option value="grosh">Грош</option></select>
-        <div class="city-pick">
-          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 22s7-6.2 7-12a7 7 0 1 0-14 0c0 5.8 7 12 7 12Z"/><circle cx="12" cy="10" r="2.5"/></svg>
-          <select id="city" aria-label="Місто"></select>
-          <button type="button" class="city-btn" id="cityBtn" aria-haspopup="listbox" aria-expanded="false" aria-controls="cityMenu"><span id="cityName"></span><svg class="city-btn__chev" viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg></button>
-          <div class="city-menu" id="cityMenu" hidden>
-            <input type="search" id="cityQ" placeholder="Знайти місто" autocomplete="off" aria-label="Знайти місто" aria-controls="cityList">
-            <div class="city-list" id="cityList" role="listbox" aria-label="Місто"></div>
-          </div>
-        </div>
+        <a href="#/settings" class="place-chip" id="placeChip"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 22s7-6.2 7-12a7 7 0 1 0-14 0c0 5.8 7 12 7 12Z"/><circle cx="12" cy="10" r="2.5"/></svg><span id="cityName"></span><span id="chainName" class="chain" hidden></span></a>
         <a href="#/settings" class="fav-link" id="settingsLink" aria-label="Налаштування" title="Налаштування"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1Z"/></svg></a>
         <a href="#/list" class="fav-link cart-link" id="cartLink" aria-label="Список покупок"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 8h14l-1.2 11.1a2 2 0 0 1-2 1.9H8.2a2 2 0 0 1-2-1.9L5 8Z"/><path d="M9 8V6.5a3 3 0 0 1 6 0V8"/></svg><span class="fav-link__n cart-link__n" id="cartN" hidden></span></a>
         <a href="#/fav" class="fav-link" id="favLink" aria-label="Обране"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 20.5s-7.6-4.7-9.4-9.6C1.4 7.6 3.6 4.5 7 4.5c2 0 3.5 1.1 5 3 1.5-1.9 3-3 5-3 3.4 0 5.6 3.1 4.4 6.4-1.8 4.9-9.4 9.6-9.4 9.6Z"/></svg><span class="fav-link__n" id="favN" hidden></span></a>
@@ -97,6 +88,6 @@
   </footer>
 
   <!-- ?v= — та сама версія, що CACHE у sw.js: старий HTML ніколи не отримає новий скрипт (і навпаки) -->
-  <script type="module" src="app.js?v=107"></script>
+  <script type="module" src="app.js?v=108"></script>
 </body>
 </html>

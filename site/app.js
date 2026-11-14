@@ -191,77 +191,76 @@ const chainById = (id) => Object.entries(ID_BASE).reduce((best, [c, b]) => (id >
 const chainOf = (p) => p.chain || 'atb';
 // Мережі з одним каталогом на всі свої міста: «Траш!» (акції однакові всюди), Грош (ціни інтернет-магазину у Вінниці).
 const NATIONAL = new Set(['thrash', 'grosh']);
+// Якщо в місті мережа онлайн не продає (from — див. loadCities), каталог — її найближчого міста.
 const chainDir = (chain, slug = state.city.slug) =>
-  chain === 'atb' ? `data/cities/${slug}` : NATIONAL.has(chain) ? `data/chains/${chain}` : `data/chains/${chain}/${slug}`;
+  chain === 'atb'
+    ? `data/cities/${slug}`
+    : NATIONAL.has(chain)
+      ? `data/chains/${chain}`
+      : `data/chains/${chain}/${state.chainCities[chain]?.find((x) => x.slug === slug)?.from || slug}`;
 // Позначка мережі (на сторінці товару й у порівнянні).
 const chainTag = (p) => (MULTI_CHAIN ? `<span class="chain chain--${chainOf(p)}">${CHAINS[chainOf(p)]}</span>` : '');
 
-// Мережа вибирається в шапці (state.chain): від неї залежать список міст, товари в пошуку й на головній.
+// Місто й магазин (мережу, state.chain) вибирають у налаштуваннях: спершу місто, тоді — одна з мереж, що в ньому є.
 // Міста мережі — data/chains/<мережа>/cities.json: [{ slug, address }] (адреса магазину цієї мережі);
-// state.cities — завжди всі міста АТБ (порівняння між містами, мапи).
+// state.cities — завжди всі міста АТБ (порівняння між містами, мапи); АТБ є в кожному з них.
 const chainCities = () => state.chainCities[state.chain];
-function fillCitySelect() {
-  $('#city').innerHTML = [...chainCities()]
-    .sort((a, b) => a.name.localeCompare(b.name, 'uk'))
-    .map((c) => `<option value="${c.slug}"${c.slug === state.city.slug ? ' selected' : ''}>${esc(c.name)}</option>`)
-    .join('');
+const chainsIn = (slug) => Object.keys(CHAINS).filter((c) => state.chainCities[c]?.some((x) => x.slug === slug));
+// Підпис у шапці: місто й магазин (посилання на налаштування).
+function showPlace() {
   $('#cityName').textContent = state.city.name;
+  const tag = $('#chainName');
+  tag.hidden = !MULTI_CHAIN;
+  tag.className = `chain chain--${state.chain}`;
+  tag.textContent = CHAINS[state.chain];
+  $('#placeChip').title = MULTI_CHAIN ? `${state.city.name}, ${CHAINS[state.chain]} — змінити в налаштуваннях` : `${state.city.name} — змінити в налаштуваннях`;
 }
-const nearestCity = (list, c) => list.reduce((a, b) => (Math.hypot(b.lat - c.lat, b.lon - c.lon) < Math.hypot(a.lat - c.lat, a.lon - c.lon) ? b : a));
 
 async function loadCities() {
   state.cities = await fetch('data/cities.json').then((r) => r.json());
   state.chainCities = { atb: state.cities };
   if (MULTI_CHAIN) {
     // Міста інших мереж — ті з наших, де мережа є (адреса — її магазину). «Траш!» — лише акції, однакові в усіх його магазинах.
-    const lists = await Promise.all(
-      [...CITY_CHAINS, 'thrash'].map((c) =>
-        fetch(`data/chains/${c}/cities.json`)
-          .then((r) => (r.ok ? r.json() : []))
-          .catch(() => []),
-      ),
-    );
+    // Міста, де магазин мережі є, а онлайн-каталогу немає (data/chains/nearby.json: { мережа: [{ slug, from, km }] }) —
+    // теж її міста, з цінами найближчого міста from.
+    const json = (file, fallback) =>
+      fetch(file)
+        .then((r) => (r.ok ? r.json() : fallback))
+        .catch(() => fallback);
+    const [nearby, ...lists] = await Promise.all([json('data/chains/nearby.json', {}), ...[...CITY_CHAINS, 'thrash'].map((c) => json(`data/chains/${c}/cities.json`, []))]);
     [...CITY_CHAINS, 'thrash'].forEach((c, i) => {
       const own = lists[i].map((x) => state.cities.find((y) => y.slug === x.slug) && { ...state.cities.find((y) => y.slug === x.slug), ...(x.address ? { address: x.address } : {}) }).filter(Boolean);
+      for (const x of nearby[c] || []) {
+        const city = state.cities.find((y) => y.slug === x.slug);
+        if (city && !own.some((y) => y.slug === x.slug) && own.some((y) => y.slug === x.from)) own.push({ ...city, from: x.from, km: x.km });
+      }
       if (own.length) state.chainCities[c] = own;
     });
   }
-  state.chain = state.chainCities[store.get('chain')] ? store.get('chain') : 'atb';
   const saved = store.get('city');
-  const all = state.cities.find((c) => c.slug === saved) || state.cities.find((c) => c.slug === 'kyiv') || state.cities[0];
-  state.city = chainCities().find((c) => c.slug === all.slug) || nearestCity(chainCities(), all);
-  fillCitySelect();
-  initCityMenu();
-  initChainPick();
-  $('#city').addEventListener('change', async () => {
-    state.city = chainCities().find((c) => c.slug === $('#city').value);
-    store.set('city', state.city.slug);
-    $('#cityName').textContent = state.city.name;
-    app.innerHTML = skeleton();
-    await loadData();
-    state.shown = PAGE;
-    route();
-  });
+  const city = state.cities.find((c) => c.slug === saved) || state.cities.find((c) => c.slug === 'kyiv') || state.cities[0];
+  const chain = store.get('chain');
+  state.chain = chainsIn(city.slug).includes(chain) ? chain : 'atb';
+  state.city = chainCities().find((c) => c.slug === city.slug);
+  showPlace();
 }
 
-// Перемикач мережі в шапці. Якщо вибраного міста в іншій мережі немає — беремо найближче, де вона є.
-function initChainPick() {
-  const sel = $('#chainSel');
-  sel.hidden = Object.keys(state.chainCities).length < 2;
-  for (const o of sel.options) o.hidden = !state.chainCities[o.value];
-  sel.value = state.chain;
-  sel.onchange = async () => {
-    state.chain = sel.value;
-    store.set('chain', state.chain);
-    state.city = chainCities().find((c) => c.slug === state.city.slug) || nearestCity(chainCities(), state.city);
-    store.set('city', state.city.slug);
-    fillCitySelect();
-    app.innerHTML = skeleton();
-    await loadData();
-    state.shown = PAGE;
-    if (location.hash.startsWith('#/p/')) location.hash = '#/';
-    else route();
-  };
+// Зміна міста чи магазину (з налаштувань). Якщо вибраної мережі в новому місті немає — магазин АТБ.
+async function setPlace(slug, chain = state.chain) {
+  if (!chainsIn(slug).includes(chain)) chain = 'atb';
+  if (slug === state.city.slug && chain === state.chain) return;
+  state.chain = chain;
+  state.city = chainCities().find((c) => c.slug === slug);
+  store.set('chain', chain);
+  store.set('city', slug);
+  showPlace();
+  const onSettings = location.hash === '#/settings';
+  if (onSettings) app.querySelector('.place')?.classList.add('is-loading');
+  else app.innerHTML = skeleton();
+  await loadData();
+  state.shown = PAGE;
+  if (onSettings) renderSettings(true);
+  else route();
 }
 
 // ---------- Налаштування (#/settings) ----------
@@ -303,16 +302,90 @@ function applyPerSetting() {
   }
 }
 
-function renderSettings() {
+// Примітка під назвою мережі на картці магазину (замість адреси).
+const STORE_NOTE = {
+  thrash: 'Лише акції — однакові в усіх магазинах мережі',
+  grosh: 'Ціни інтернет-магазину у Вінниці',
+};
+// Позначка на картці магазину (за замовчуванням — дві перші літери назви).
+const STORE_MARK = { megamarket: 'ММ', ekomarket: 'ЕМ', tavriav: 'ТВ' };
+const PIN = '<path d="M12 22s7-6.2 7-12a7 7 0 1 0-14 0c0 5.8 7 12 7 12Z"/><circle cx="12" cy="10" r="2.5"/>';
+// Картки магазинів міста slug (вибраний — chain).
+function storeCards(slug, chain) {
+  return chainsIn(slug)
+    .map((c) => {
+      const here = state.chainCities[c].find((x) => x.slug === slug);
+      const sub = STORE_NOTE[c] || (here.from ? `Онлайн тут не продає — ціни з міста ${cityName(here.from)}` : here.address) || '';
+      return `<button type="button" class="store-card" data-chain="${c}" aria-pressed="${c === chain}">
+          <span class="store-card__mark chain--${c}" aria-hidden="true">${esc(STORE_MARK[c] || CHAINS[c].replace(/[^\p{L}]/gu, '').slice(0, 2))}</span>
+          <span class="store-card__text"><b>${esc(CHAINS[c])}</b>${sub ? `<small>${esc(sub)}</small>` : ''}</span>
+          <svg class="store-card__check" viewBox="0 0 24 24" aria-hidden="true"><path d="m5 12.5 4.5 4.5L19 7.5"/></svg>
+        </button>`;
+    })
+    .join('');
+}
+function placeHtml() {
+  const stores = storeCards(state.city.slug, state.chain);
+  return `<section class="panel settings place">
+      <div class="panel__head"><h2>${MULTI_CHAIN ? 'Місто і магазин' : 'Місто'}</h2></div>
+      <div class="place__current"><svg viewBox="0 0 24 24" aria-hidden="true">${PIN}</svg><b>${esc(state.city.name)}</b>${MULTI_CHAIN ? `<span class="chain chain--${state.chain}">${esc(CHAINS[state.chain])}</span>` : ''}</div>
+      <label class="place__search"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+        <input type="search" id="placeQ" placeholder="Знайти місто" autocomplete="off" aria-label="Знайти місто"></label>
+      <div class="place__cities" id="placeCities" role="listbox" aria-label="Місто"></div>
+      ${
+        MULTI_CHAIN
+          ? `<h3 class="place__h">Ваш основний магазин</h3>
+      <p class="note place__hint">Від магазину залежать товари в пошуку й на головній; ціни інших мереж міста — у порівнянні на сторінці товару.</p>
+      <div class="store-grid" role="group" aria-label="Магазин">${stores}</div>`
+          : `<p class="note place__hint">Ціни магазину АТБ у вибраному місті: ${esc(state.city.address || '')}</p>`
+      }
+    </section>`;
+}
+function initPlace() {
+  const q = $('#placeQ');
+  const list = $('#placeCities');
+  const sorted = [...state.cities].sort((a, b) => a.name.localeCompare(b.name, 'uk'));
+  const paint = () => {
+    const words = norm(q.value).split(/\s+/).filter(Boolean);
+    const shown = sorted.filter((c) => words.every((w) => norm(c.name).includes(w)));
+    list.innerHTML = shown.length
+      ? shown
+          .map((c) => {
+            const n = MULTI_CHAIN ? chainsIn(c.slug).length : 0;
+            return `<button type="button" class="place__city" role="option" data-slug="${c.slug}" aria-selected="${c.slug === state.city.slug}">${esc(c.name)}${n ? `<small>${n} ${n % 10 === 1 && n % 100 !== 11 ? 'мережа' : n % 10 >= 2 && n % 10 <= 4 && (n % 100 < 12 || n % 100 > 14) ? 'мережі' : 'мереж'}</small>` : ''}</button>`;
+          })
+          .join('')
+      : '<p class="note">Такого міста немає</p>';
+    const sel = !words.length && list.querySelector('[aria-selected=true]');
+    if (sel) list.scrollTop = sel.offsetTop - list.clientHeight / 2 + sel.offsetHeight / 2;
+  };
+  q.oninput = paint;
+  q.onkeydown = (e) => {
+    const first = list.querySelector('[data-slug]');
+    if (e.key === 'Enter' && first) setPlace(first.dataset.slug);
+  };
+  list.onclick = (e) => {
+    const b = e.target.closest('[data-slug]');
+    if (b) setPlace(b.dataset.slug);
+  };
+  app.querySelector('.store-grid')?.addEventListener('click', (e) => {
+    const b = e.target.closest('[data-chain]');
+    if (b) setPlace(state.city.slug, b.dataset.chain);
+  });
+  paint();
+}
+
+function renderSettings(keepScroll = false) {
   document.querySelector('.top').classList.add('is-product');
   document.title = 'Налаштування — Жаба';
-  scrollTo(0, 0);
+  if (!keepScroll) scrollTo(0, 0);
   const seg = (name, options, value) =>
     `<div class="seg settings-seg" role="group" aria-label="${esc(name)}">${Object.entries(options)
       .map(([k, [label, icon]]) => `<button type="button" data-set="${name}" data-v="${k}" aria-pressed="${k === value}">${icon ? `<svg viewBox="0 0 24 24" aria-hidden="true">${icon}</svg>` : ''}${esc(label)}</button>`)
       .join('')}</div>`;
   app.innerHTML = `${backLink()}<h1 class="page-title">Налаштування</h1>
-    <section class="panel settings">
+    ${placeHtml()}
+    <section class="panel settings settings--view">
       <div class="panel__head"><h2>Вигляд</h2></div>
       <div class="settings-row">
         <div><b>Тема</b><span class="note">«Як у системі» — світла чи темна, як налаштовано на пристрої.</span></div>
@@ -328,11 +401,15 @@ function renderSettings() {
       </div>
     </section>
     <p class="note settings-note">Налаштування зберігаються лише в цьому браузері.</p>`;
-  app.querySelector('.settings').onclick = (e) => {
+  initPlace();
+  app.querySelector('.settings--view').onclick = (e) => {
     const b = e.target.closest('[data-set]');
     if (!b) return;
     if (b.dataset.set === 'theme') setTheme(b.dataset.v);
-    if (b.dataset.set === 'tileVs') store.set('tileVs', b.dataset.v === 'on' ? '1' : '0');
+    if (b.dataset.set === 'tileVs') {
+      store.set('tileVs', b.dataset.v === 'on' ? '1' : '0');
+      loadTileVs();
+    }
     if (b.dataset.set === 'per') {
       store.set('per', b.dataset.v === 'on' ? '1' : '0');
       applyPerSetting();
@@ -345,91 +422,6 @@ function renderSettings() {
 const topBar = $('.top');
 new ResizeObserver(() => document.documentElement.style.setProperty('--top-h', `${topBar.offsetHeight}px`)).observe(topBar);
 
-// Вибір міста на комп'ютері: власне меню з пошуком (системний список з 26 міст незручний).
-// На сенсорних екранах лишається звичайний <select> — його показує CSS.
-function initCityMenu() {
-  const btn = $('#cityBtn');
-  const menu = $('#cityMenu');
-  const q = $('#cityQ');
-  const list = $('#cityList');
-  const sorted = () => [...chainCities()].sort((a, b) => a.name.localeCompare(b.name, 'uk'));
-  let shown = [];
-  let active = 0;
-  $('#cityName').textContent = state.city.name;
-
-  const paint = () => {
-    for (const [i, el] of [...list.children].entries()) {
-      el.classList.toggle('is-active', i === active);
-      if (i === active) el.scrollIntoView({ block: 'nearest' });
-    }
-  };
-  const render = () => {
-    const words = norm(q.value).split(/\s+/).filter(Boolean);
-    shown = sorted().filter((c) => words.every((w) => norm(c.name).includes(w)));
-    active = words.length ? 0 : Math.max(0, shown.findIndex((c) => c.slug === state.city.slug));
-    list.innerHTML = shown.length
-      ? shown
-          .map(
-            (c) => `<div class="city-opt" role="option" id="city-${c.slug}" data-slug="${c.slug}" aria-selected="${c.slug === state.city.slug}">
-              <b>${esc(c.name)}</b><small>${esc(c.address)}</small></div>`,
-          )
-          .join('')
-      : '<p class="note city-none">Такого міста немає</p>';
-    paint();
-  };
-  const open = () => {
-    q.value = '';
-    render();
-    menu.hidden = false;
-    btn.setAttribute('aria-expanded', 'true');
-    q.focus();
-  };
-  const close = (focusBtn) => {
-    menu.hidden = true;
-    btn.setAttribute('aria-expanded', 'false');
-    if (focusBtn) btn.focus();
-  };
-  const pick = (slug) => {
-    close(true);
-    if (slug === state.city.slug) return;
-    $('#city').value = slug;
-    $('#city').dispatchEvent(new Event('change'));
-  };
-
-  btn.onclick = () => (menu.hidden ? open() : close());
-  q.oninput = render;
-  q.onkeydown = (e) => {
-    const cols = getComputedStyle(list).gridTemplateColumns.split(' ').length;
-    const step = { ArrowDown: cols, ArrowUp: -cols, ArrowRight: 1, ArrowLeft: -1 }[e.key];
-    if (step && shown.length && (e.key.startsWith('ArrowU') || e.key.startsWith('ArrowD') || q.value === '')) {
-      e.preventDefault();
-      active = Math.min(shown.length - 1, Math.max(0, active + step));
-      paint();
-    } else if (e.key === 'Enter' && shown[active]) {
-      e.preventDefault();
-      pick(shown[active].slug);
-    } else if (e.key === 'Escape') {
-      close(true);
-    }
-  };
-  list.onclick = (e) => {
-    const opt = e.target.closest('[data-slug]');
-    if (opt) pick(opt.dataset.slug);
-  };
-  list.onpointermove = (e) => {
-    const opt = e.target.closest('[data-slug]');
-    if (!opt) return;
-    const i = shown.findIndex((c) => c.slug === opt.dataset.slug);
-    if (i !== active) {
-      active = i;
-      for (const [j, el] of [...list.children].entries()) el.classList.toggle('is-active', j === active);
-    }
-  };
-  document.addEventListener('pointerdown', (e) => {
-    if (!menu.hidden && !menu.contains(e.target) && !btn.contains(e.target)) close();
-  });
-}
-
 // Незмінні поля товарів мережі (назва, фото, розділ…) однакові в усіх її містах — лежать один раз
 // у data/chains/<мережа>/catalog.json (scraper/chain-pack.js); у products.json міста — ціни й те, що відрізняється.
 const chainCatalogs = {};
@@ -437,9 +429,9 @@ const chainCatalog = (c) =>
   (chainCatalogs[c] ||= fetch(`data/chains/${c}/catalog.json`)
     .then((r) => (r.ok ? r.json() : {}))
     .catch(() => ({})));
-async function chainProducts(c) {
+async function chainProducts(c, slug = state.city.slug) {
   const [list, cat] = await Promise.all([
-    fetch(`${chainDir(c)}/products.json`)
+    fetch(`${chainDir(c, slug)}/products.json`)
       .then((r) => (r.ok ? r.json() : []))
       .catch(() => []),
     NATIONAL.has(c) ? {} : chainCatalog(c),
@@ -452,7 +444,7 @@ async function ensureChains(chains) {
   const need = [...new Set(chains)].filter((c) => CITY_CHAINS.includes(c) && state.chains.includes(c) && !state.loaded.has(c));
   if (!need.length) return;
   const slug = state.city.slug;
-  const lists = await Promise.all(need.map(chainProducts));
+  const lists = await Promise.all(need.map((c) => chainProducts(c)));
   if (state.city.slug !== slug) return;
   need.forEach((c, i) => {
     if (state.loaded.has(c)) return;
@@ -496,7 +488,7 @@ async function loadData() {
     optional(`${cityDir()}/extra.json`, []),
     fetch(`${cityDir()}/meta.json`).then((r) => r.json()),
     CITY_CHAINS.includes(state.chain) ? optional(`${chainDir(state.chain)}/meta.json`, null) : null,
-    ...eager.map(chainProducts),
+    ...eager.map((c) => chainProducts(c)),
   ]);
   await withCatalog(extra);
   // Акції «Траш!» — якщо в місті є його магазини. До state.chains (порівняння каталогів) не входять: це лише акції.
@@ -532,7 +524,9 @@ async function loadData() {
   $('#updated').textContent =
     state.chain === 'thrash'
       ? `${state.city.name}, «Траш!»: лише акції, однакові в усіх магазинах мережі · ${m.productCount.toLocaleString('uk')} товарів · оновлено ${fmtDate(parseDate(m.updated))}`
-      : `${state.city.name}, магазин ${CHAINS[state.chain]}: ${m.store.address} · ${m.productCount.toLocaleString('uk')} товарів · оновлено ${fmtDate(parseDate(m.updated))}`;
+      : state.city.from
+        ? `${state.city.name}: ${CHAINS[state.chain]} тут онлайн не продає — ціни магазину в місті ${cityName(state.city.from)} (${state.city.km} км), ${m.store.address} · ${m.productCount.toLocaleString('uk')} товарів · оновлено ${fmtDate(parseDate(m.updated))}`
+        : `${state.city.name}, магазин ${CHAINS[state.chain]}: ${m.store.address} · ${m.productCount.toLocaleString('uk')} товарів · оновлено ${fmtDate(parseDate(m.updated))}`;
 
   const groups = new Map();
   for (const p of products) groups.set(p.group || 'Інше', (groups.get(p.group || 'Інше') || 0) + 1);
@@ -543,6 +537,24 @@ async function loadData() {
   fillCategories();
   syncFavs();
   syncCart();
+  loadTileVs();
+}
+
+// «Порівняння на плитках»: одразу є лише Сільпо й вибрана мережа, решту мереж міста довантажуємо у фоні
+// й дописуємо їхні рядки під уже показаними плитками.
+function loadTileVs() {
+  if (!MULTI_CHAIN || !showTileVs()) return;
+  const slug = state.city.slug;
+  ensureChains(state.chains).then(() => {
+    if (state.city.slug !== slug) return;
+    for (const a of app.querySelectorAll('a.card[href^="#/p/"]')) {
+      const p = state.byId.get(Number(a.getAttribute('href').slice(4)));
+      const body = a.querySelector('.card__body');
+      if (!p || p._view || p.from || !body) continue;
+      body.querySelector('.card__vs')?.remove();
+      body.insertAdjacentHTML('beforeend', vsTileHtml(p));
+    }
+  });
 }
 
 // Підкатегорії лише вибраного розділу.
@@ -1157,18 +1169,11 @@ const perSorter = (unit) => (a, b) => {
 // ---------- Пошук за штрихкодом ----------
 // data/barcodes/NN.json (NN — дві останні цифри): штрихкод → { n: назва, r: [z<номер> | f<код>] } — товари мереж
 // zakaz.ua і групи Fozzy (будує scraper/barcodes.js). АТБ і Грош штрихкодів не публікують: їхній товар шукаємо
-// за назвою (той самий товар — за назвою й фасовкою, autoMatch). На основному сайті — лише АТБ.
+// за назвою (той самий товар — за фасовкою й назвою, bestMatch). На основному сайті — лише АТБ.
 const isBarcode = (q) => /^\d{8,14}$/.test(q.trim());
 // Найсхожий товар мережі chain за назвою (sample — { name }), якщо це той самий товар.
 function sameByName(sample, chain) {
-  let best = null;
-  let top = 0;
-  for (const x of state.all) {
-    if (chainOf(x) !== chain) continue;
-    const sc = matchScore(sample, x);
-    if (sc > top && autoMatch(sample, x, sc)) [best, top] = [x, sc];
-  }
-  return best;
+  return bestMatch(sample, state.all.filter((x) => chainOf(x) === chain));
 }
 async function lookupBarcode(q) {
   const code = q.trim().replace(/^0+/, '');
@@ -1489,20 +1494,30 @@ const loadWeek = (date) => {
   return weekCache.get(date);
 };
 
-// ТЕСТ: рівень цін у містах для Сільпо (будує scraper/silpo-snapshot.js).
-let silpoLevels;
-const loadSilpoLevels = () =>
-  !MULTI_CHAIN ? Promise.resolve(null) : (silpoLevels ||= fetch('data/chains/silpo/levels.json')
-    .then((r) => (r.ok ? r.json() : null))
-    .catch(() => null));
+// ТЕСТ: рівень цін у містах інших мереж — data/chains/<мережа>/levels.json. Сільпо — окремий знімок усіх його міст
+// (scraper/silpo-snapshot.js); решта — зі щоденних каталогів наших міст (scraper/chain-levels.js).
+const LEVEL_CHAINS = ['silpo', 'fora', 'metro', 'auchan', 'novus', 'tavriav'];
+let chainLevels;
+const loadChainLevels = () =>
+  !MULTI_CHAIN
+    ? Promise.resolve({})
+    : (chainLevels ||= Promise.all(
+        LEVEL_CHAINS.map((c) =>
+          fetch(`data/chains/${c}/levels.json`)
+            .then((r) => (r.ok ? r.json() : null))
+            .catch(() => null),
+        ),
+      ).then((all) => Object.fromEntries(LEVEL_CHAINS.map((c, i) => [c, all[i]]).filter(([, lv]) => lv?.cities?.length >= 3))));
 
 async function renderHomeMap(el) {
-  const [lv0, map, weeks, slv] = await Promise.all([loadLevels(), loadMap().catch(() => null), loadWeeks(), loadSilpoLevels()]);
+  const [lv0, map, weeks, other] = await Promise.all([loadLevels(), loadMap().catch(() => null), loadWeeks(), loadChainLevels()]);
   if (!el.isConnected) return;
   if (!map || !lv0) return el.remove();
-  // Мережа на мапі: типово — вибрана в шапці; перемикач поруч дає подивитись і іншу (повзунок тижнів — лише АТБ).
-  const levelsOf = { atb: lv0, ...(slv?.cities?.length ? { silpo: slv } : {}) };
-  let chain = levelsOf[state.chain] ? state.chain : 'atb';
+  // Мережа на мапі — вибрана в налаштуваннях (основний магазин); якщо для неї мапи немає (Траш!, Грош, мережі з одним
+  // містом) — блок не показуємо. Повзунок тижнів — лише АТБ.
+  const levelsOf = { atb: lv0, ...other };
+  const chain = state.chain;
+  if (!levelsOf[chain]) return el.remove();
   // Дані тижня (перераховуються, коли повзунком вибирають інший тиждень).
   // Кожен пункт — і місто (c), і його значення (r.v); наші щоденні міста мають slug.
   let lv, list, lo, hi, span, tone, pts, here, sums;
@@ -1605,7 +1620,11 @@ async function renderHomeMap(el) {
       ? `Відсоток — на скільки поточні ціни Сільпо (з акціями) у місті вищі чи нижчі за середні по ${list.length} ${plural(list.length, 'місту', 'містах', 'містах')}, де є Сільпо, за спільними товарами; по одному магазину в кожному місті.${
           lv.date ? ` Знімок за ${fmtDate(parseDate(lv.date))}: молочні продукти, напої, хліб, ковбаси, кава й чай, побутова хімія.` : ''
         } Колір області — середнє її міст.`
-      : `Відсоток — на скільки поточні ціни (з акціями) у місті вищі чи нижчі за середні по ${list.length} ${plural(list.length, 'місту', 'містах', 'містах')}, за спільними товарами; по одному магазину в кожному місті.${
+      : chain !== 'atb'
+        ? `Відсоток — на скільки поточні ціни ${CHAINS[chain]} (з акціями) у місті вищі чи нижчі за середні по ${list.length} ${plural(list.length, 'місту', 'містах', 'містах')}, де ми збираємо її каталог, за спільними товарами — усіма, що є в обох містах; по одному магазину в кожному місті.${
+            lv.date ? ` Ціни за ${fmtDate(parseDate(lv.date))}.` : ''
+          } Колір області — середнє її міст.`
+        : `Відсоток — на скільки поточні ціни (з акціями) у місті вищі чи нижчі за середні по ${list.length} ${plural(list.length, 'місту', 'містах', 'містах')}, за спільними товарами; по одному магазину в кожному місті.${
           lv.date ? ` Знімок за ${fmtDate(parseDate(lv.date))}: молочні продукти, напої, хліб, ковбаси, кава й чай, побутова хімія.` : ''
         } Колір області — середнє її міст.`;
   // Повзунок тижнів — коли знімків щонайменше два; типово — останній.
@@ -1617,13 +1636,7 @@ async function renderHomeMap(el) {
           <span class="umap__week"></span>
         </div>`
       : '';
-  el.innerHTML = `<div class="panel__head"><h2>Рівень цін у містах</h2>${
-    levelsOf.silpo
-      ? `<div class="seg map-chain" role="group" aria-label="Мережа">${Object.keys(levelsOf)
-          .map((k) => `<button type="button" data-chain="${k}" aria-pressed="${k === chain}">${CHAINS[k]}</button>`)
-          .join('')}</div>`
-      : ''
-  }</div>
+  el.innerHTML = `<div class="panel__head"><h2>Рівень цін у містах${MULTI_CHAIN ? ` <span class="chain chain--${chain}">${esc(CHAINS[chain])}</span>` : ''}</h2></div>
     <p class="compare__summary">${summaryHtml()}</p>
     <div class="umap umap--zoom">
       <svg viewBox="0 0 ${map.w} ${map.h}" role="img" aria-label="Мапа: різниця цін між містами">
@@ -1769,17 +1782,6 @@ async function renderHomeMap(el) {
     tip.hidden = true;
     draw();
   };
-  el.querySelector('.map-chain')?.addEventListener('click', (e) => {
-    const b = e.target.closest('[data-chain]');
-    if (!b || b.dataset.chain === chain) return;
-    chain = b.dataset.chain;
-    for (const x of el.querySelectorAll('.map-chain button')) x.setAttribute('aria-pressed', x === b);
-    const slider = el.querySelector('.umap__weeks input');
-    // АТБ — з останнього тижня.
-    setData(levelsOf[chain]);
-    if (slider) slider.value = weekAt;
-    paint();
-  });
   const slider = el.querySelector('.umap__weeks input');
   if (slider) {
     slider.addEventListener('input', async () => {
@@ -1842,9 +1844,10 @@ function renderHome() {
     return;
   }
   const stale = d.date !== state.meta.updated ? ` (останній збір у цьому місті — ${fmtDate(parseDate(state.meta.updated))})` : '';
+  const changesLink = `<a class="home-all" href="#/today">Усі зміни <b>${tabs.reduce((n, t) => n + t[2].length, 0).toLocaleString('uk')}</b> →</a>`;
   app.innerHTML = `${map}
     <div class="home-head"><div><h1 class="page-title">Що змінилося ${fmtDate(parseDate(d.date), false)}</h1>
-      <p class="note today-sub">${esc(state.city.name)}: зміни порівняно з попереднім днем${stale}.</p></div>${all}</div>
+      <p class="note today-sub">${esc(state.city.name)}: зміни порівняно з попереднім днем${stale}.</p></div>${changesLink}</div>
     ${tabs
       .map(
         ([k, label, list]) => `<section class="home-block">
@@ -2115,17 +2118,21 @@ function labelsHtml(p) {
 // Картка товару в іншому місті (#/p/<id>/<місто>) — з мапи «Ціна в інших містах»; вибране місто не змінюється.
 const cityCatalogs = new Map();
 async function cityProduct(slug, id) {
-  if (!cityCatalogs.has(slug)) {
+  const chain = chainById(id);
+  const key = `${chain}/${slug}`;
+  if (!cityCatalogs.has(key)) {
     cityCatalogs.set(
-      slug,
-      fetch(`data/cities/${slug}/products.json`)
-        .then((r) => r.json())
+      key,
+      (chain === 'atb' ? fetch(`data/cities/${slug}/products.json`).then((r) => r.json()) : chainProducts(chain, slug))
         .then((list) => new Map(list.map((x) => [x.id, x])))
         .catch(() => new Map()),
     );
   }
-  const base = (await cityCatalogs.get(slug)).get(id);
-  return base && { ...base, from: slug, _view: true, _per: perUnit(base) };
+  const base = (await cityCatalogs.get(key)).get(id);
+  if (!base) return null;
+  const p = expand({ ...base, from: slug, _view: true });
+  p._per = perUnit(p);
+  return p;
 }
 
 let productSeq = 0;
@@ -2202,7 +2209,7 @@ async function renderProduct(id, slug) {
     </section>
     ${otherChains(p).length && !p._view ? '<section class="panel vs" id="vs"></section>' : ''}
     ${
-      chainOf(p) === 'atb'
+      COMPARE_CHAINS.includes(chainOf(p)) && (chainOf(p) === 'atb' || MULTI_CHAIN)
         ? `<section class="panel" id="compare">
       <div class="panel__head"><h2>Ціна в інших містах</h2></div>
       <div class="sk" style="height:120px;border-radius:12px"></div>
@@ -2221,6 +2228,14 @@ async function renderProduct(id, slug) {
   if (p.oldPrice && cur?.inflated) {
     $('#warn').innerHTML = `<p class="warn-box"><b>⚠</b><span>Ціну до знижки завищено: перед акцією товар коштував <b>${fmtPrice(cur.ref)} грн</b>, а не ${fmtPrice(p.oldPrice)} грн.
       ${realDiscount(p.price, cur.ref)}, а не знижка ${pct(p.price, p.oldPrice)}%.</span></p>`;
+  }
+  // Ціну відстежуємо менше тижня — замість графіка й статистики лише напис.
+  const since = hist.length ? parseDate(hist[0][0]) : null;
+  if (!since || parseDate(state.meta.updated) - since < 7 * DAY) {
+    document.querySelector('.ranges').hidden = true;
+    $('#chart').innerHTML = `<p class="hist-forming">Історія в процесі формування${since ? `<small>Ціну відстежуємо з ${fmtDate(since)}</small>` : ''}</p>`;
+    $('#stats').innerHTML = '';
+    return;
   }
   let range = 4;
   const draw = () => {
@@ -2250,15 +2265,24 @@ try {
 } catch {}
 // Службові слова й упаковка (за першими 5 літерами) — не відрізняють товари.
 const MATCH_STOP = new Set(
-  'з зі із та і й в у на для без по тм гат шт вагов фасов преміум тетра пляшк стака пакет банка фольг флако фільт мрц тек стери пасте ультр натур упако скло пет об ск бут кор'.split(' '),
+  'з зі із та і й в у на для без по тм гат шт вагов фасов лісов преміум тетра пляшк стака пакет банка фольг флако фільт мрц тек стери пасте ультр натур упако скло пет об ск бут кор'.split(' '),
 );
+// Латиниця — кирилицею (для порівняння назв): одні мережі пишуть «Oreo», «Milka», інші — «Орео», «Мілка».
+const LAT_CYR = { sh: 'ш', ch: 'ч', kh: 'х', zh: 'ж', ts: 'ц', ya: 'я', yu: 'ю', a: 'а', b: 'б', c: 'к', d: 'д', e: 'е', f: 'ф', g: 'г', h: 'х', i: 'і', j: 'й', k: 'к', l: 'л', m: 'м', n: 'н', o: 'о', p: 'п', q: 'к', r: 'р', s: 'с', t: 'т', u: 'у', v: 'в', w: 'в', x: 'кс', y: 'і', z: 'з' };
+const cyr = (w) => (/[a-z]/.test(w) ? w.replace(/sh|ch|kh|zh|ts|ya|yu|[a-z]/g, (m) => LAT_CYR[m]) : w);
+// Без закінчень відмінків: «цілими», «цілий», «цілим» — одне слово (далі беремо лише початок слова).
+const STEM_ENDS = 'ими ами ями ого ому ою ею ий ій им ім их іх ої ом ем ам ям ах ях ая яя ее ие ые а я у ю і и о е ь'.split(' ');
+const stem = (w) => {
+  for (const e of STEM_ENDS) if (w.length - e.length >= 3 && w.endsWith(e)) return w.slice(0, -e.length);
+  return w;
+};
 const matchWords = (p) =>
   (p._w ||= new Set(
     norm(p.name)
       .replace(/[«»"“”()®™,.!+*]/g, ' ')
       .split(/\s+/)
       .filter((w) => w.length > 1 && !/\d/.test(w) && !w.includes('/'))
-      .map((w) => w.slice(0, 5))
+      .map((w) => stem(cyr(w)).slice(0, 5))
       .filter((w) => !MATCH_STOP.has(w)),
   ));
 const qtyOf = (p) => (p._qty === undefined ? (p._qty = p.unit === 'кг' ? null : parseWeight(p.name)) : p._qty);
@@ -2291,7 +2315,8 @@ const VARIANTS = Object.entries({
   карам: 'карам', марме: 'марме', згущ: 'згущ', мят: 'мят', кориц: 'кориц', імбир: 'імбир', молоко: 'молоко', какао: 'какао',
   часни: 'часни', цибул: 'цибул', сирн: 'сирн', бекон: 'бекон', папри: 'папри', гостр: 'гостр', томат: 'томат', гриб: 'гриб',
   краб: 'краб', кур: 'кур', ялов: 'ялов', свин: 'свин', індич: 'індич', качк: 'качк', качин: 'качк', кроли: 'кроли',
-  телят: 'телят', лосос: 'лосос', тунц: 'тунц', форел: 'форел', оселе: 'оселе',
+  телят: 'телят', лосос: 'лосос', тунц: 'тунц', форел: 'форел', оселе: 'оселе', сметан: 'сметан', хазел: 'фунд', черрі: 'вишн',
+  евкал: 'евкал', ментол: 'мят', сирк: '', сир: 'сир', чорниц: 'чорниц', лохин: 'чорниц',
   світл: 'світл', темн: 'темн', червон: 'червон', рожев: 'рожев', біле: 'біл', біла: 'біл', білий: 'біл',
 });
 const variantsOf = (p) =>
@@ -2301,6 +2326,7 @@ const variantsOf = (p) =>
         .split(/[^a-zа-яіїєґ]+/)
         .filter(Boolean)
         .slice(1)
+        .map(cyr)
         .filter((w) => !w.startsWith('карамеліз'))
         .map((w) => VARIANTS.find(([pre]) => w.startsWith(pre))?.[1])
         .filter(Boolean),
@@ -2308,16 +2334,90 @@ const variantsOf = (p) =>
   ]
     .sort()
     .join(' '));
-const autoMatch = (a, b, score) => {
-  const qa = qtyOf(a);
-  const qb = qtyOf(b);
+// Чи може це бути той самий товар (без оцінки назви й фасовки): жирність чи міцність, «в асортименті», кількість штук,
+// витримка, смак.
+const sameKind = (a, b) => {
   const pa = pctOf(a);
   const pb = pctOf(b);
   if (pa && pb && +pa !== +pb) return false;
+  // «В асортименті» — невідомо, який саме смак чи різновид.
+  if (/асорт/i.test(a.name) || /асорт/i.test(b.name)) return false;
+  // Кількість штук в упаковці й витримка («10 шт» і «20шт», «9 міс.» і «12 міс.») — теж різні товари.
+  for (const re of [/(\d+)\s*шт/, /(\d+)\s*міс/]) {
+    const [na, nb] = [a, b].map((p) => p.name.match(re)?.[1]);
+    if (na && nb && +na !== +nb) return false;
+  }
   const va = variantsOf(a);
   const vb = variantsOf(b);
-  if (va && vb && va !== vb) return false;
-  return score >= MATCH_AUTO && (qa && qb ? sameQty(qa, qb) : !qa && !qb && a.unit === b.unit);
+  if (!va || !vb || va === vb) return true;
+  // Смаки різні. Виняток: в одній назві смаків менше, але всі вони є в іншій, бренд той самий, а коротша назва вся
+  // вміщається в довшу — «Шоколад з цілим горіхом 300г «MILKA»» і «Шоколад 300г Milka з цілими лісовими горіхами,
+  // молочною та карамельною начинками»: просто одна назва докладніша.
+  // Зайвий смак докладнішої назви — лише в начинці (поруч зі словом «начинка»): «з цілими горіхами … та карамельною
+  // начинками». Інакше це інший смак: «Нектар Яблуко» і «Нектар Яблуко-виноград».
+  const A = va.split(' ');
+  const B = vb.split(' ');
+  const [less, more, moreP] = A.length < B.length ? [A, B, b] : [B, A, a];
+  if (!less.every((x) => more.includes(x)) || !sameBrand(a, b) || !nested(a, b)) return false;
+  const words = norm(moreP.name).split(/[^a-zа-яіїєґ]+/).filter(Boolean).map(cyr);
+  return more
+    .filter((x) => !less.includes(x))
+    .every((v) =>
+      words.some((w, i) => VARIANTS.find(([pre]) => w.startsWith(pre))?.[1] === v && words.slice(Math.max(0, i - 2), i + 3).some((n) => n.startsWith('начин'))),
+    );
+};
+// Та сама фасовка: вага, об'єм чи кількість однакові (до 3%) або обидва товари вагові.
+const sameSize = (a, b) => {
+  const qa = qtyOf(a);
+  const qb = qtyOf(b);
+  return qa && qb ? sameQty(qa, qb) : !qa && !qb && a.unit === b.unit;
+};
+// Той самий товар іншої мережі (list — її товари): спершу — товари того самого розділу й тієї самої фасовки,
+// серед них — найсхожіший за назвою. Фасовка вже звузила вибір, тож досить оцінки MATCH_QTY, якщо найкращий помітно
+// схожіший за наступного (MATCH_GAP); вагові товари (фасовки немає) — лише з високою оцінкою MATCH_AUTO.
+const MATCH_QTY = 0.6;
+const MATCH_GAP = 0.1;
+function bestMatch(p, list) {
+  let best = null;
+  let top = -Infinity;
+  let second = -Infinity;
+  for (const x of list) {
+    if ((p.group && x.group && x.group !== p.group) || !sameSize(p, x) || !sameKind(p, x)) continue;
+    const sc = matchScore(p, x);
+    if (sc > top) [second, top, best] = [top, sc, x];
+    else if (sc > second) second = sc;
+  }
+  if (!best || top >= MATCH_AUTO) return best;
+  // Нижча оцінка — лише коли бренд той самий, смак однаковий (або не названий в жодній назві), а коротша назва вся
+  // вміщається в довшу: «Ром Spiced Gold Captain Morgan» і «Напій Captain Morgan Original Spiced Gold на основі рому» —
+  // так; «Кава Nescafe Gold» і «Кава Nescafe Classic» — ні (у кожній є слово, якого немає в іншій).
+  return qtyOf(p) && top >= MATCH_QTY && top - second >= MATCH_GAP && sameBrand(p, best) && variantsOf(p) === variantsOf(best) && nested(p, best) ? best : null;
+}
+const nested = (a, b) => {
+  const wa = matchWords(a);
+  const wb = matchWords(b);
+  return [...wa].every((w) => wb.has(w)) || [...wb].every((w) => wa.has(w));
+};
+// Бренд для порівняння: поле brand, а якщо його немає (Грош) — назва в лапках у кінці («… 300г «MILKA»»).
+const brandKey = (p) => {
+  if (p._bk === undefined) {
+    // (лише коли перед лапками є фасовка чи інші лапки: «Сигарети «Kent Silver»» — це назва, а не бренд)
+    const m = p.brand ? null : p.name.match(/^(.*\S)\s*[«"]([^«»"]+)[»"]\s*$/);
+    const b = p.brand || (m && /\d|»/.test(m[1]) ? m[2] : null);
+    p._bk = b ? stem(cyr(norm(b).replace(/[«»"]/g, '').trim().split(/\s+/)[0])).slice(0, 5) : null;
+  }
+  return p._bk;
+};
+// Той самий бренд: однаковий або бренд одного товару є в назві іншого (крім першого слова — це тип товару:
+// «Молоко …» і бренд «Молокія»).
+const restWords = (p) => {
+  const first = stem(cyr(norm(p.name).split(/[^a-zа-яіїєґ']+/).find(Boolean) || '')).slice(0, 5);
+  return [...matchWords(p)].filter((w) => w !== first);
+};
+const sameBrand = (a, b) => {
+  const ba = brandKey(a);
+  const bb = brandKey(b);
+  return Boolean((ba && bb && ba === bb) || (bb && restWords(a).includes(bb)) || (ba && restWords(b).includes(ba)));
 };
 function matchScore(a, b) {
   const wa = matchWords(a);
@@ -2336,10 +2436,12 @@ function matchScore(a, b) {
   // («Lay's зі смаком реберець» і «Lay's зі смаком сиру»).
   s -= (0.8 * Math.min(sa - common, sb - common)) / Math.sqrt(sa * sb);
   // Бренд: однаковий — плюс; різні (і бренду одного немає в назві другого) — це інший товар.
-  const ba = a.brand && norm(a.brand).slice(0, 5);
-  const bb = b.brand && norm(b.brand).slice(0, 5);
+  const ba = brandKey(a);
+  const bb = brandKey(b);
   // (В овочах і фруктах «бренд» в АТБ — країна походження, тож різниця там нічого не каже.)
   if (ba && bb) s += ba === bb ? 0.2 : wa.has(bb) || wb.has(ba) || a.group === 'Овочі та фрукти' ? 0 : -0.3;
+  // Бренд лише в одного (Фора, Грош його не дають), але він є в назві другого — так само той самий бренд.
+  else if (ba ? wb.has(ba) : bb && wa.has(bb)) s += 0.2;
   const qa = qtyOf(a);
   const qb = qtyOf(b);
   if (qa && qb) s += sameQty(qa, qb) ? 0.15 : -0.1;
@@ -2528,9 +2630,9 @@ function renderChainVs(el, p) {
 }
 
 // ---------- ТЕСТ: акції «Траш!» ----------
-// Артикул «Траш!» = код товару Сільпо, тож товар Сільпо знаходимо точно; товар АТБ — за назвою й фасовкою (autoMatch).
+// Артикул «Траш!» = код товару Сільпо, тож товар Сільпо знаходимо точно; товар АТБ — за фасовкою й назвою (bestMatch).
 // Такий самий товар іншої мережі: Сільпо ↔ «Траш!» — за кодом (артикул «Траш!» = код Сільпо), решта — за назвою
-// й фасовкою (autoMatch) у тому самому розділі. Пару, яку користувач вибрав чи вимкнув у «Порівнянні» на сторінці
+// й фасовкою (bestMatch) у тому самому розділі. Пару, яку користувач вибрав чи вимкнув у «Порівнянні» на сторінці
 // товару (pairs), беремо як є. Пари рахуємо раз на місто (state.all змінюється з містом) — плиток сотні.
 let peersFor = null;
 let peers = new Map();
@@ -2555,6 +2657,20 @@ function setPair(p, chain, id) {
   if (id) pairs[pairKey(id, mine)] = p.id;
   store.set('pairs', JSON.stringify(pairs));
 }
+// Товари мережі chain у місті (без цін з інших міст) — для пошуку такого самого товару; оновлюються, коли
+// state.all змінюється (інше місто, довантажені мережі).
+let itemsFor = null;
+let itemsLen = 0;
+let items = new Map();
+function chainItems(chain) {
+  if (itemsFor !== state.all || itemsLen !== state.all.length) {
+    itemsFor = state.all;
+    itemsLen = state.all.length;
+    items = new Map();
+  }
+  if (!items.has(chain)) items.set(chain, (chain === 'thrash' ? state.thrash : state.all).filter((x) => chainOf(x) === chain && !x.from));
+  return items.get(chain);
+}
 function peerOf(p, chain) {
   const mine = chainOf(p);
   if (chain === mine) return null;
@@ -2572,14 +2688,7 @@ function peerOf(p, chain) {
   if (peers.has(key)) return peers.get(key);
   let best = null;
   if (FAMILY[mine] && FAMILY[mine] === FAMILY[chain]) best = state.byId.get(p.id - ID_BASE[mine] + ID_BASE[chain]) || null;
-  else {
-    let top = 0;
-    for (const x of chain === 'thrash' ? state.thrash : state.all) {
-      if (chainOf(x) !== chain || x.from || (p.group && x.group && x.group !== p.group)) continue;
-      const sc = matchScore(p, x);
-      if (sc > top && autoMatch(p, x, sc)) [best, top] = [x, sc];
-    }
-  }
+  else best = bestMatch(p, chainItems(chain));
   peers.set(key, best);
   return best;
 }
@@ -2609,12 +2718,15 @@ function vsDiff(a, b) {
 // data/compare/NN.json: { id: { місто: ціна | [ціна, ціна_до_знижки] } } — будує scraper/compare.js.
 
 const compareShards = new Map();
-async function loadCompare(id) {
+// Ціни товару в усіх містах: АТБ — data/compare, інші мережі — data/chains/<мережа>/compare (scraper/chain-levels.js).
+const COMPARE_CHAINS = ['atb', 'silpo', 'fora', 'metro', 'auchan', 'novus', 'tavriav'];
+async function loadCompare(id, chain = 'atb') {
   const shard = String(id % SHARDS).padStart(2, '0');
-  if (!compareShards.has(shard)) {
-    compareShards.set(shard, fetch(`data/compare/${shard}.json`).then((r) => (r.ok ? r.json() : {})).catch(() => ({})));
+  const key = `${chain}/${shard}`;
+  if (!compareShards.has(key)) {
+    compareShards.set(key, fetch(`${chain === 'atb' ? 'data' : `data/chains/${chain}`}/compare/${shard}.json`).then((r) => (r.ok ? r.json() : {})).catch(() => ({})));
   }
-  return (await compareShards.get(shard))[id] || {};
+  return (await compareShards.get(key))[id] || {};
 }
 
 // Мапа: межі областей (Natural Earth, суспільне надбання) у проєкції, з якою зберігали контури.
@@ -2698,9 +2810,12 @@ function placeLabels(pts, here, map, widthOf, m = 1, taken = []) {
 }
 
 async function renderCompare(el, p) {
-  const [prices, map] = await Promise.all([loadCompare(p.id), loadMap().catch(() => null)]);
+  const chain = chainOf(p);
+  const [prices, map] = await Promise.all([loadCompare(p.id, chain), loadMap().catch(() => null)]);
   if (!el.isConnected) return;
-  const rows = state.cities
+  // Міста мережі, де ми збираємо її каталог (без тих, де ціни беруться з сусіднього міста).
+  const cities = chain === 'atb' ? state.cities : (state.chainCities[chain] || []).filter((c) => !c.from);
+  const rows = cities
     .filter((c) => prices[c.slug] != null)
     .map((c) => {
       const v = prices[c.slug];
@@ -2718,7 +2833,7 @@ async function renderCompare(el, p) {
   const min = rows[0].price;
   const max = rows.at(-1).price;
   const cheapest = rows.filter((r) => r.price === min).map((r) => r.c.name);
-  const absent = state.cities.length - rows.length;
+  const absent = cities.length - rows.length;
 
   let summary;
   if (min === max) summary = `Однакова ціна в усіх ${rows.length} містах.`;
@@ -2766,7 +2881,7 @@ async function renderCompare(el, p) {
   let mapHtml = '';
   if (map) {
     const byCity = new Map(rows.map((r) => [r.c, r]));
-    const pts = state.cities.filter((c) => c.lat != null).map((c) => ({ c, r: byCity.get(c), xy: mapXY(map, c) }));
+    const pts = cities.filter((c) => c.lat != null).map((c) => ({ c, r: byCity.get(c), xy: mapXY(map, c) }));
     // Ширина підпису на око: назва 13px, ціна 15.5px (+ відсоток 13px).
     const labels = placeLabels(pts, here, map, (c, r) =>
       Math.max(c.name.length * 7.2, fmtPrice(r.price).length * 9.5 + (diffOf(r)?.cls ? diffOf(r).text.length * 7.5 + 5 : 0)),
@@ -2816,7 +2931,7 @@ async function renderCompare(el, p) {
     <details class="compare__list"${map ? '' : ' open'}><summary>Показати списком (${rows.length} ${plural(rows.length, 'місто', 'міста', 'міст')})</summary>
       <div class="crows">${rows.map(row).join('')}</div>
     </details>
-    <p class="note">Ціни за ${fmtDate(parseDate(state.meta.updated))}, по одному магазину в кожному місті${absent ? `; у ${absent} містах товару немає в асортименті` : ''}. Натисніть місто, щоб побачити ціну й історію в ньому.${map ? `${max > min ? ' Колір області — середня ціна в її містах.' : ''} Межі: Natural Earth.` : ''}</p>`;
+    <p class="note">Ціни${chain === 'atb' ? '' : ` ${CHAINS[chain]}`} за ${fmtDate(parseDate(state.meta.updated))}, по одному магазину в кожному місті${chain === 'atb' ? '' : `, де ми збираємо її каталог (${cities.length} ${plural(cities.length, 'місто', 'міста', 'міст')})`}${absent ? `; у ${absent} містах товару немає в асортименті` : ''}. Натисніть місто, щоб побачити ціну й історію в ньому.${map ? `${max > min ? ' Колір області — середня ціна в її містах.' : ''} Межі: Natural Earth.` : ''}</p>`;
 
   // Картка товару з цінами іншого міста; вибране місто лишається тим самим.
   const go = (slug) => {
@@ -2825,7 +2940,7 @@ async function renderCompare(el, p) {
   };
   const tip = el.querySelector('.umap__tip');
   const showTip = (g, touch) => {
-    const c = state.cities.find((x) => x.slug === g.dataset.city);
+    const c = cities.find((x) => x.slug === g.dataset.city);
     const r = rows.find((x) => x.c === c);
     const d = r && diffOf(r);
     const price = r
@@ -3016,7 +3131,7 @@ function renderChart(el, hist, days, unit) {
       ${oldPath ? `<span>${swatch('old-line')}Ціна до знижки</span>` : ''}
       ${hasInflated ? `<span>${swatch('old-line old-line--inflated')}⚠ Завищена ціна до знижки</span><span>${swatch('ref-line')}Ціна перед акцією</span>` : ''}
     </div>
-    ${spanDays < 3 ? `<p class="note">Історія збирається з ${fmtDate(x0)}. Графік наповнюватиметься щодня.</p>` : ''}`;
+`;
 
   const svg = el.querySelector('svg');
   const cross = el.querySelector('.cross');
@@ -3171,6 +3286,116 @@ function route(e) {
   sync();
 }
 
+// ---------- Початковий екран ----------
+// З'являється при першому вході (місто ще не вибирали): що вміє сайт і вибір міста (у тесті — й магазину).
+// На локальній копії (localhost) його можна відкрити кнопкою в шапці.
+const LOCAL = ['localhost', '127.0.0.1', '[::1]'].includes(location.hostname);
+const WELCOME_FEATURES = [
+  ['<path d="M3 17l5-5 4 4 8-8"/><path d="M14 8h6v6"/>', 'Історія кожної ціни', 'Графік зміни ціни, найнижча й найвища ціна, усі подорожчання.'],
+  ['<path d="M12 9v4M12 17h.01"/><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z"/>', 'Чесні акції', 'Позначаємо знижки, де «ціну до акції» завищили перед акцією.'],
+  ['<path d="M7 7h11l-3-3M17 17H6l3 3"/>', 'Порівняння', MULTI_CHAIN ? 'Той самий товар в інших мережах і містах — де дешевше.' : 'Ціна того самого товару в інших містах — де дешевше.'],
+  ['<path d="M12 20.5s-7.6-4.7-9.4-9.6C1.4 7.6 3.6 4.5 7 4.5c2 0 3.5 1.1 5 3 1.5-1.9 3-3 5-3 3.4 0 5.6 3.1 4.4 6.4-1.8 4.9-9.4 9.6-9.4 9.6Z"/>', 'Обране й список покупок', 'Збережіть товари — побачите, коли вони подешевшають.'],
+];
+function openWelcome() {
+  document.querySelector('.welcome')?.remove();
+  let slug = state.city.slug;
+  let chain = state.chain;
+  const el = document.createElement('div');
+  el.className = 'welcome';
+  el.innerHTML = `<div class="welcome__box" role="dialog" aria-modal="true" aria-labelledby="welcomeTitle">
+      <button type="button" class="welcome__close" aria-label="Закрити"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg></button>
+      <div class="welcome__scroll">
+      <div class="welcome__hero">
+        <img src="icon.svg" alt="" width="64" height="64">
+        <h2 id="welcomeTitle">Жаба — трекер цін у супермаркетах</h2>
+        <p>Щоб жаба не душила: стежте за цінами${MULTI_CHAIN ? ' в АТБ, Сільпо, Форі та інших мережах' : ' в АТБ'}, перевіряйте, чи чесні акції, і купуйте вигідно.</p>
+      </div>
+      <ul class="welcome__features">${WELCOME_FEATURES.map(([icon, t, d]) => `<li><svg viewBox="0 0 24 24" aria-hidden="true">${icon}</svg><span><b>${t}</b>${d}</span></li>`).join('')}</ul>
+      <div class="welcome__place">
+        <h3>Ваше місто</h3>
+        <label class="place__search"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+          <input type="search" placeholder="Знайти місто" autocomplete="off" aria-label="Знайти місто"></label>
+        <div class="place__cities welcome__cities" role="listbox" aria-label="Місто"></div>
+        <div class="welcome__stores"${MULTI_CHAIN ? '' : ' hidden'}></div>
+      </div>
+      </div>
+      <div class="welcome__foot">
+        <span class="note">${MULTI_CHAIN ? 'Місто й магазин' : 'Місто'} можна змінити в налаштуваннях.</span>
+        <button type="button" class="btn btn--primary welcome__go">Почати</button>
+      </div>
+    </div>`;
+  document.body.append(el);
+  document.documentElement.classList.add('is-welcome');
+  const q = el.querySelector('input');
+  const list = el.querySelector('.welcome__cities');
+  const stores = el.querySelector('.welcome__stores');
+  const sorted = [...state.cities].sort((a, b) => a.name.localeCompare(b.name, 'uk'));
+  const paintStores = () => {
+    if (!MULTI_CHAIN) return;
+    if (!chainsIn(slug).includes(chain)) chain = 'atb';
+    stores.innerHTML = `<h3>Ваш основний магазин</h3><div class="store-grid" role="group" aria-label="Магазин">${storeCards(slug, chain)}</div>`;
+  };
+  const paint = (center) => {
+    const words = norm(q.value).split(/\s+/).filter(Boolean);
+    const shown = sorted.filter((c) => words.every((w) => norm(c.name).includes(w)));
+    list.innerHTML = shown.length
+      ? shown.map((c) => `<button type="button" class="place__city" role="option" data-slug="${c.slug}" aria-selected="${c.slug === slug}">${esc(c.name)}</button>`).join('')
+      : '<p class="note">Такого міста немає</p>';
+    const sel = center && !words.length && list.querySelector('[aria-selected=true]');
+    if (sel) list.scrollTop = sel.offsetTop - list.clientHeight / 2 + sel.offsetHeight / 2;
+  };
+  const pick = (s) => {
+    slug = s;
+    for (const b of list.querySelectorAll('[data-slug]')) b.setAttribute('aria-selected', b.dataset.slug === slug);
+    paintStores();
+  };
+  const onKey = (e) => {
+    if (e.key === 'Escape') close(false);
+  };
+  const close = (apply) => {
+    store.set('welcomed', '1');
+    el.remove();
+    document.documentElement.classList.remove('is-welcome');
+    removeEventListener('keydown', onKey);
+    if (apply) setPlace(slug, chain);
+  };
+  addEventListener('keydown', onKey);
+  q.oninput = () => paint(false);
+  q.onkeydown = (e) => {
+    const first = list.querySelector('[data-slug]');
+    if (e.key === 'Enter' && first) pick(first.dataset.slug);
+  };
+  list.onclick = (e) => {
+    const b = e.target.closest('[data-slug]');
+    if (b) pick(b.dataset.slug);
+  };
+  stores.onclick = (e) => {
+    const b = e.target.closest('[data-chain]');
+    if (!b) return;
+    chain = b.dataset.chain;
+    for (const x of stores.querySelectorAll('[data-chain]')) x.setAttribute('aria-pressed', x === b);
+  };
+  el.querySelector('.welcome__close').onclick = () => close(false);
+  el.querySelector('.welcome__go').onclick = () => close(true);
+  el.onclick = (e) => {
+    if (e.target === el) close(false);
+  };
+  paint(true);
+  paintStores();
+  el.querySelector('.welcome__go').focus({ preventScroll: true });
+}
+if (LOCAL) {
+  const b = document.createElement('button');
+  b.type = 'button';
+  b.className = 'fav-link';
+  b.id = 'welcomeBtn';
+  b.title = 'Початковий екран (лише на локальній копії)';
+  b.setAttribute('aria-label', 'Початковий екран');
+  b.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 11.5 12 4l9 7.5"/><path d="M5.5 9.5V20h13V9.5"/><path d="M10 20v-5h4v5"/></svg>';
+  b.onclick = () => state.city && openWelcome();
+  $('#settingsLink').before(b);
+}
+
 app.innerHTML = skeleton();
 loadCities()
   .then(loadData)
@@ -3180,6 +3405,7 @@ loadCities()
     addEventListener('hashchange', route);
     route();
     favToast();
+    if (!store.get('welcomed') && !store.get('city')) openWelcome();
   })
   .catch((err) => {
     console.error(err);
