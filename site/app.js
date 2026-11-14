@@ -925,82 +925,11 @@ function renderCart() {
         ${items.some((x) => x.c.done) ? '<button id="cartClearDone">Прибрати куплене</button>' : ''}
         <button id="cartClear">Очистити список</button>
       </div>
-    </div>
-    ${byChain.some(([c]) => c === 'atb') ? `<section class="panel" id="cartCompare"><div class="panel__head"><h2>${byChain.length > 1 ? 'Товари АТБ' : 'Цей список'} в інших містах</h2></div><div class="sk" style="height:120px;border-radius:12px"></div></section>` : ''}`;
+    </div>`;
   // Зміна кількості перемальовує сторінку — лишаємось на тому самому місці.
   const y = scrollY;
   app.innerHTML = html;
   scrollTo(0, y);
-  // Ціни в інших містах є лише для АТБ.
-  if ($('#cartCompare')) renderCartCompare($('#cartCompare'), priced.filter((x) => chainId(x) === 'atb'));
-}
-
-// Список в інших містах (data/compare): кожне місто порівнюємо з вибраним за товарами, що є в обох;
-// скільки товарів у місті бракує — пишемо поруч. Сума — за тими товарами, що там є.
-async function renderCartCompare(el, priced) {
-  const title = el.querySelector('h2').textContent;
-  const prices = await Promise.all(priced.map((x) => loadCompare(x.id)));
-  if (!el.isConnected) return;
-  const one = (v) => (Array.isArray(v) ? v[0] : v);
-  const mine = state.city.slug;
-  const rows = state.cities
-    .filter((c) => c.slug !== mine)
-    .map((city) => {
-      let sum = 0;
-      let both = 0;
-      let bothHere = 0;
-      let lack = 0;
-      priced.forEach((x, i) => {
-        const v = prices[i][city.slug];
-        if (v == null) return lack++;
-        sum += one(v) * x.c.q;
-        const h = prices[i][mine];
-        if (h != null) {
-          both += one(v) * x.c.q;
-          bothHere += one(h) * x.c.q;
-        }
-      });
-      return { city, sum, lack, d: bothHere ? (both / bothHere - 1) * 100 : null };
-    })
-    .filter((r) => r.d != null)
-    .sort((a, b) => a.d - b.d || a.lack - b.lack);
-  if (!rows.length) {
-    el.innerHTML = `<div class="panel__head"><h2>${esc(title)}</h2></div><p class="note">Порівняти немає з чим: товарів зі списку немає в інших містах або у вибраному.</p>`;
-    return;
-  }
-  const lo = rows[0].d;
-  const hi = rows.at(-1).d;
-  const pos = (v) => (hi > lo ? ((v - lo) / (hi - lo)) * 100 : 50);
-  const diff = (d) =>
-    Math.abs(d) < 0.5
-      ? '<span class="crow__diff">так само</span>'
-      : `<span class="crow__diff crow__diff--${d < 0 ? 'down' : 'up'}">${d < 0 ? '−' : '+'}${Math.abs(d) < 1 ? '<1' : Math.round(Math.abs(d))}%</span>`;
-  const line = (r) => `<div class="crow">
-      <span class="crow__city">${esc(r.city.name)}${r.lack ? ` <small class="note">без ${r.lack}</small>` : ''}</span>
-      <span class="crow__track" aria-hidden="true"><i style="left:${pos(r.d).toFixed(1)}%"></i></span>
-      <span class="crow__price">${fmtPrice(r.sum)}</span>${diff(r.d)}
-    </div>`;
-  // Найдешевше — серед міст, де бракує найменше товарів (rows уже впорядковані за відсотком).
-  const fewest = Math.min(...rows.map((r) => r.lack));
-  const best = rows.find((r) => r.lack === fewest);
-  const same = rows.every((r) => Math.abs(r.d) < 0.5);
-  const summary = same
-    ? `У всіх ${rows.length + 1} містах ціни на цей список однакові.`
-    : best.d < -0.5
-      ? `Найдешевше — у місті ${esc(best.city.name)}: на <b>${Math.round(-best.d) || '<1'}%</b> менше, ніж у місті ${esc(state.city.name)}${best.lack ? ` (без ${best.lack} ${plural(best.lack, 'товару', 'товарів', 'товарів')})` : ''}.`
-      : `У місті ${esc(state.city.name)} цей список не дорожчий, ніж деінде.`;
-  // Перші 8 — найдешевші; решта згорнута.
-  const TOP = 8;
-  el.innerHTML = `<div class="panel__head"><h2>${esc(title)}</h2></div>
-    <p class="compare__summary">${summary}</p>
-    ${
-      same
-        ? ''
-        : `<div class="crows">${rows.slice(0, TOP).map(line).join('')}</div>${
-            rows.length > TOP ? `<details class="compare__list"><summary>Ще ${rows.length - TOP} ${plural(rows.length - TOP, 'місто', 'міста', 'міст')}</summary><div class="crows">${rows.slice(TOP).map(line).join('')}</div></details>` : ''
-          }`
-    }
-    <p class="note">${same ? '' : `Відсоток — порівняння з містом ${esc(state.city.name)} за товарами, що є в обох містах; «без N» — стільки товарів зі списку в місті немає, сума — без них. `}Ціни за ${fmtDate(parseDate(state.meta.updated))}, по одному магазину в кожному місті, з урахуванням поточних акцій.</p>`;
 }
 
 function bindCart() {
