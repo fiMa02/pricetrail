@@ -328,7 +328,8 @@ select {
 .tag--warn { color: var(--warn); background: var(--warn-soft); }
 .tag--low { color: var(--good); background: var(--good-soft); }
 /* Довга мітка переноситься між частинами, а не обрізається краєм картки. */
-.tag--wrap { flex-wrap: wrap; row-gap: 2px; max-width: 100%; line-height: 1.15; border-radius: 10px; }
+.tag--wrap { flex-wrap: wrap; row-gap: 2px; max-width: 100%; line-height: 1.15; border-radius: 10px; white-space: normal; }
+.tag--wrap > span { white-space: nowrap; }
 .more { display: block; margin: 20px auto; }
 
 /* Серце на картці */
