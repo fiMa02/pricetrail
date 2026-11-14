@@ -2670,7 +2670,8 @@ async function loadCompare(id, chain = 'atb') {
   const shard = String(id % SHARDS).padStart(2, '0');
   const key = `${chain}/${shard}`;
   if (!compareShards.has(key)) {
-    compareShards.set(key, fetch(`${chain === 'atb' ? 'data' : `data/chains/${chain}`}/compare/${shard}.json`).then((r) => (r.ok ? r.json() : {})).catch(() => ({})));
+    // Шлях цілком у лапках (`data/…`): для /test/ deploy.yml і preview.mjs дописують «../» лише перед 'data/ і `data/.
+    compareShards.set(key, fetch(chain === 'atb' ? `data/compare/${shard}.json` : `data/chains/${chain}/compare/${shard}.json`).then((r) => (r.ok ? r.json() : {})).catch(() => ({})));
   }
   return (await compareShards.get(key))[id] || {};
 }
