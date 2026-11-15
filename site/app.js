@@ -859,12 +859,21 @@ function renderCart() {
   const ids = Object.keys(cart).map(Number);
   let html = `${backLink(cartFrom)}<h1 class="page-title">Список покупок</h1>`;
   if (!ids.length) {
-    app.innerHTML = `${html}<div class="empty"><b>🛍</b>Список порожній<br><span class="note">Натисніть кошик на картці товару — і тут з'явиться сума покупки та порівняння з іншими містами</span></div>`;
+    app.innerHTML = `${html}<div class="empty"><b>🛍</b>Список порожній<br><span class="note">Натисніть кошик на картці товару — і тут з'явиться сума покупки</span></div>${NY_SLOT}`;
+    renderNewYear();
     return;
   }
   const items = ids
     .map((id) => ({ id, c: cart[id], p: state.byId.get(id) }))
     .sort((a, b) => a.c.done - b.c.done || a.c.name.localeCompare(b.c.name, 'uk'));
+  // Товари мереж, чиїх каталогів ще не завантажено (напр. з новорічного кошика), — довантажуємо й перемальовуємо.
+  const needChains = [...new Set(items.filter((x) => !x.p).map((x) => x.c.chain || chainById(x.id)))].filter((ch) => !state.loaded.has(ch) && state.chains.includes(ch));
+  if (needChains.length) {
+    ensureChains(needChains).then(() => {
+      syncCart();
+      if (location.hash === '#/list') renderCart();
+    });
+  }
   const priced = items.filter((x) => x.p);
   const sum = (list) => list.reduce((s, x) => s + x.p.price * x.c.q, 0);
   const total = sum(priced);
@@ -925,14 +934,140 @@ function renderCart() {
         ${items.some((x) => x.c.done) ? '<button id="cartClearDone">Прибрати куплене</button>' : ''}
         <button id="cartClear">Очистити список</button>
       </div>
-    </div>`;
+    </div>${NY_SLOT}`;
   // Зміна кількості перемальовує сторінку — лишаємось на тому самому місці.
   const y = scrollY;
   app.innerHTML = html;
   scrollTo(0, y);
+  renderNewYear();
+}
+
+// ---------- Новорічний кошик у списку покупок ----------
+// Набір продуктів до новорічного столу (data/stats/<місто>.json, scraper/stats.js): у кожній позиції — найдешевший
+// відповідний товар кожної мережі міста. Варіанти: усе в одній мережі, у двох або в усіх — що де купити й скільки
+// це заощадить; вибраний варіант додається в список покупок.
+const NY_SLOT = '<section class="panel ny" id="ny"></section>';
+let nyPick = 0; // вибраний варіант (індекс)
+let nyPlans = null;
+async function renderNewYear() {
+  const el = $('#ny');
+  if (!el) return;
+  const slug = state.city.slug;
+  const st = await loadCityStats(slug);
+  if (!el.isConnected || !st?.basket) return el.remove();
+  const own = (ch) => ch === 'atb' || (state.chainCities[ch] || []).some((x) => x.slug === slug && !x.from);
+  const chains = Object.keys(st.basket.chains).filter((ch) => (MULTI_CHAIN ? own(ch) : ch === 'atb'));
+  if (!chains.length) return el.remove();
+  const defs = st.basket.items;
+  // cost[ch][k] — вартість позиції k у мережі ch (Infinity, якщо такого товару в мережі немає).
+  const cost = Object.fromEntries(chains.map((ch) => [ch, st.basket.chains[ch].items.map((x, k) => (x[6] || !x[1] ? Infinity : x[5] * defs[k][3]))]));
+  // План для набору мереж: кожну позицію — там, де вона найдешевша.
+  const plan = (set) => {
+    const pick = defs.map((_, k) => set.reduce((best, ch) => (cost[ch][k] < (best ? cost[best][k] : Infinity) ? ch : best), null));
+    const covered = pick.filter(Boolean).length;
+    const total = pick.reduce((sum, ch, k) => sum + (ch ? cost[ch][k] : 0), 0);
+    return { set, pick, covered, total };
+  };
+  const better = (a, b) => b.covered - a.covered || a.total - b.total;
+  const singles = chains.map((ch) => plan([ch])).sort(better);
+  const plans = [{ label: 'Одна мережа', ...singles[0] }];
+  if (chains.length > 2) {
+    const pairs = [];
+    for (let i = 0; i < chains.length; i++) for (let j = i + 1; j < chains.length; j++) pairs.push(plan([chains[i], chains[j]]));
+    pairs.sort(better);
+    plans.push({ label: 'Дві мережі', ...pairs[0] });
+  }
+  if (chains.length > 1) plans.push({ label: chains.length > 2 ? 'Усі мережі' : 'Дві мережі', ...plan(chains) });
+  // Мережі, що в плані нічого не дають, прибираємо (план «усі» може обійтися меншою кількістю).
+  for (const p of plans) p.used = [...new Set(p.pick.filter(Boolean))];
+  nyPlans = plans;
+  if (nyPick >= plans.length) nyPick = 0;
+  const base = plans[0];
+  const tabs =
+    plans.length > 1
+      ? `<div class="seg ny__tabs" role="tablist">${plans
+          .map(
+            (p, i) => `<button type="button" data-ny="${i}" aria-pressed="${i === nyPick}">${p.label}<small>${grn(p.total)}${
+              i && base.total - p.total >= 1 && p.covered >= base.covered ? ` · −${grn(base.total - p.total)}` : ''
+            }</small></button>`,
+          )
+          .join('')}</div>`
+      : '';
+  const p = plans[nyPick];
+  const groups = p.used
+    .map((ch) => {
+      const ks = defs.map((_, k) => k).filter((k) => p.pick[k] === ch);
+      const sum = ks.reduce((a, k) => a + cost[ch][k], 0);
+      return `<div class="ny__group">
+        <div class="ny__ghead"><span class="chain chain--${ch}">${esc(CHAINS[ch])}</span><span class="note">${ks.length} ${plural(ks.length, 'позиція', 'позиції', 'позицій')}</span><b>${grn(sum)}</b></div>
+        <ul class="ny__list">${ks
+          .map((k) => {
+            const [, id, name] = st.basket.chains[ch].items[k];
+            return `<li><span>${esc(defs[k][1])}</span><a href="#/p/${id}">${esc(name)}</a><b>${grn(cost[ch][k])}</b></li>`;
+          })
+          .join('')}</ul>
+      </div>`;
+    })
+    .join('');
+  const miss = defs.filter((_, k) => !p.pick[k]).map((d) => d[1]);
+  const save = base.total - p.total;
+  const lead =
+    nyPick === 0
+      ? plans.length > 1
+        ? `Найдешевше все в одному магазині — у ${esc(CHAINS[p.used[0]])}: <b>${grn(p.total)}</b>.`
+        : `${esc(CHAINS[p.used[0]])}: <b>${grn(p.total)}</b>.`
+      : `${p.used.map((ch) => esc(CHAINS[ch])).join(' + ')}: <b>${grn(p.total)}</b>${save >= 1 ? ` — на <b>${grn(save)}</b> (${Math.round((save / base.total) * 100)}%) дешевше, ніж усе в ${esc(CHAINS[base.used[0]])}` : ''}.`;
+  el.innerHTML = `<div class="panel__head"><h2>🎄 Новорічний кошик</h2></div>
+    <p class="note">${defs.length} продуктів до новорічного столу на 4 людини: у кожній позиції — найдешевший відповідний товар мережі в місті ${esc(state.city.name)}, з акціями.${plans.length > 1 ? ' Можна купити все в одному магазині або розділити між мережами — так дешевше.' : ''}</p>
+    ${tabs}
+    <p class="compare__summary">${lead}</p>
+    <div class="ny__groups">${groups}</div>
+    ${miss.length ? `<p class="note">Немає в жодній мережі міста: ${esc(miss.join(', '))}.</p>` : ''}
+    <div class="cart-actions"><button type="button" class="btn ny__add" data-ny-add="${nyPick}">${BAG}Додати в список покупок</button></div>
+    <p class="note">Суми орієнтовні — за ціною за кг чи л у потрібній кількості; у список кладемо цілі упаковки. Ціни за ${fmtDate(parseDate(st.date))}.</p>`;
+}
+// Додає вибраний варіант новорічного кошика в список покупок (цілі упаковки, вагові — у кг).
+function addNewYear(i) {
+  const p = nyPlans?.[i];
+  if (!p) return 0;
+  let n = 0;
+  return loadCityStats(state.city.slug).then((st) => {
+    const defs = st.basket.items;
+    p.pick.forEach((ch, k) => {
+      if (!ch) return;
+      const [, id, name, , inPack] = st.basket.chains[ch].items[k];
+      const need = defs[k][3];
+      const prod = state.byId.get(id);
+      const unit = prod?.unit || (inPack === 1 && defs[k][2] === 'кг' ? 'кг' : 'шт');
+      const q = unit === 'кг' ? Math.max(0.1, Math.round(need * 10) / 10) : Math.max(1, Math.ceil(need / inPack - 0.15));
+      const old = cart[id];
+      cart[id] = { q: old ? Math.max(old.q, q) : q, done: false, name: prod?.name || name, img: prod?.img || '', unit, chain: ch };
+      n++;
+    });
+    saveCart();
+    return n;
+  });
 }
 
 function bindCart() {
+  app.addEventListener('click', async (e) => {
+    const ny = e.target.closest('[data-ny]');
+    if (ny) {
+      nyPick = Number(ny.dataset.ny);
+      return renderNewYear();
+    }
+    const add = e.target.closest('[data-ny-add]');
+    if (add) {
+      const n = await addNewYear(Number(add.dataset.nyAdd));
+      if (location.hash === '#/list') renderCart();
+      const b = $('.ny__add');
+      if (b && n) {
+        b.textContent = `✓ Додано ${n} ${plural(n, 'товар', 'товари', 'товарів')}`;
+        b.disabled = true;
+      }
+      return;
+    }
+  });
   app.addEventListener('click', (e) => {
     const t = e.target.closest('[data-cart], [data-qty], [data-uncart], #cartClear, #cartClearDone');
     if (!t) return;
@@ -1766,7 +1901,7 @@ function renderStatsPage() {
   renderCityStats();
 }
 
-// ---------- «Кошик Жаби» і «Що дорожчає найшвидше» ----------
+// ---------- «Новорічний кошик» і «Що дорожчає найшвидше» ----------
 // data/stats/<місто>.json (будує scraper/stats.js щоночі): вартість набору базових продуктів у кожній мережі міста
 // по днях (у кожній позиції — найдешевший відповідний товар, з акціями) і зростання звичайних цін за до 30 днів.
 const statsCache = new Map();
@@ -1783,7 +1918,7 @@ async function renderCityStats() {
   const rEl = $('#rising');
   if (!bEl) return;
   if (!st) {
-    bEl.innerHTML = '<div class="panel__head"><h2>Кошик Жаби</h2></div><p class="note">Для цього міста статистики поки немає.</p>';
+    bEl.innerHTML = '<div class="panel__head"><h2>🎄 Новорічний кошик</h2></div><p class="note">Для цього міста статистики поки немає.</p>';
     rEl?.remove();
     return;
   }
@@ -1791,7 +1926,7 @@ async function renderCityStats() {
   const own = (c) => c === 'atb' || (state.chainCities[c] || []).some((x) => x.slug === slug && !x.from);
   const chains = Object.keys(st.basket.chains).filter((c) => (MULTI_CHAIN ? own(c) : c === 'atb'));
   if (!chains.length) {
-    bEl.innerHTML = '<div class="panel__head"><h2>Кошик Жаби</h2></div><p class="note">Для цього міста статистики поки немає.</p>';
+    bEl.innerHTML = '<div class="panel__head"><h2>🎄 Новорічний кошик</h2></div><p class="note">Для цього міста статистики поки немає.</p>';
     rEl?.remove();
     return;
   }
@@ -1838,8 +1973,8 @@ async function renderCityStats() {
       rows.length > 1
         ? `Найдешевше в місті ${esc(state.city.name)} — ${esc(CHAINS[cheapest.c])}: <b>${grn(cheapest.now)}</b>${rows.length > 1 ? `, найдорожче — ${esc(CHAINS[rows.at(-1).c])}: на ${Math.round((rows.at(-1).now / cheapest.now - 1) * 100)}% більше` : ''}.`
         : `${esc(CHAINS[cheapest.c])} у місті ${esc(state.city.name)}: <b>${grn(cheapest.now)}</b>.`;
-    bEl.innerHTML = `<div class="panel__head"><h2>Кошик Жаби</h2></div>
-      <p class="note">${defs.length} базових продуктів на місяць для однієї людини: у кожній позиції — найдешевший відповідний товар мережі, з акціями, як на касі.</p>
+    bEl.innerHTML = `<div class="panel__head"><h2>🎄 Новорічний кошик</h2></div>
+      <p class="note">${defs.length} продуктів до новорічного столу на 4 людини: у кожній позиції — найдешевший відповідний товар мережі, з акціями, як на касі. Розділити покупку між мережами можна в <a href="#/list">списку покупок</a>.</p>
       <p class="compare__summary">${summary}</p>
       <div class="brows">${list}</div>
       <div class="bdetail">
