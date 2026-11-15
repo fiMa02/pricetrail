@@ -1053,3 +1053,28 @@ html.is-welcome { overflow: hidden; }
   .rtop__p { grid-column: 1; grid-row: 2; margin-top: -4px; }
   .rtop > b { grid-row: 1 / 3; grid-column: 2; }
 }
+
+/* Новорічний кошик у списку покупок */
+.ny { margin-top: 16px; }
+.ny__tabs { display: flex; flex-wrap: wrap; width: 100%; border-radius: 16px; margin: 6px 0 4px; }
+.ny__tabs button { flex: 1 1 0; display: grid; gap: 2px; padding: 8px 10px; border-radius: 12px; font-weight: 600; text-align: center; }
+.ny__tabs button small { font-weight: 500; color: var(--muted); font-size: 12px; white-space: nowrap; }
+.ny__tabs button[aria-pressed=true] small { color: var(--good); }
+.ny__groups { display: grid; gap: 14px; margin: 10px 0; }
+.ny__ghead { display: flex; align-items: center; gap: 10px; padding-bottom: 6px; border-bottom: 1px solid var(--line); }
+.ny__ghead .chain { margin: 0; }
+.ny__ghead b { margin-left: auto; font-variant-numeric: tabular-nums; }
+.ny__list { list-style: none; margin: 0; padding: 0; }
+.ny__list li { display: grid; grid-template-columns: 11em minmax(0, 1fr) auto; gap: 10px; align-items: baseline; padding: 6px 0; font-size: 14px; border-bottom: 1px dashed var(--line); }
+.ny__list li:last-child { border-bottom: 0; }
+.ny__list li > span { font-weight: 600; }
+.ny__list a { color: var(--muted); text-decoration: none; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ny__list a:hover { color: var(--accent); }
+.ny__list b { font-variant-numeric: tabular-nums; white-space: nowrap; }
+.ny__add { display: inline-flex; align-items: center; gap: 8px; }
+.ny__add svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 2; }
+@media (max-width: 560px) {
+  .ny__list li { grid-template-columns: minmax(0, 1fr) auto; row-gap: 0; }
+  .ny__list a { grid-column: 1; grid-row: 2; font-size: 13px; }
+  .ny__list b { grid-row: 1 / 3; grid-column: 2; align-self: center; }
+}
