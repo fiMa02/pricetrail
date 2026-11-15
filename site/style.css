@@ -116,7 +116,7 @@ svg { flex: none; }
   background: var(--surface); border: 1px solid var(--line); color: var(--ink); text-decoration: none;
 }
 .fav-link[aria-current] { color: var(--sale); }
-#settingsLink[aria-current] { color: var(--accent); }
+#settingsLink[aria-current], #statsLink[aria-current] { color: var(--accent); }
 #settingsLink[aria-current] svg { fill: none; }
 @media (max-width: 380px) { .fav-link { width: 36px; height: 36px; } .top__actions { gap: 6px; } }
 .fav-link__n[hidden] { display: none; }
@@ -956,7 +956,7 @@ html.is-welcome { overflow: hidden; }
 /* Телефон: нижня панель розділів; кнопки обраного, кошика й налаштувань у шапці ховаємо */
 .tabbar { display: none; }
 @media (max-width: 720px) {
-  #settingsLink, #cartLink, #favLink { display: none; }
+  #settingsLink, #cartLink, #favLink, #statsLink { display: none; }
   body { padding-bottom: calc(76px + env(safe-area-inset-bottom, 0px)); }
   .tabbar {
     position: fixed; z-index: 40; left: 8px; right: 8px; bottom: calc(8px + env(safe-area-inset-bottom, 0px));
@@ -982,10 +982,74 @@ html.is-welcome { overflow: hidden; }
   .toast { bottom: calc(86px + env(safe-area-inset-bottom, 0px)); }
 }
 .stats-empty { display: none; }
-#app:not(:has(.home-map)) .stats-empty { display: block; }
+#app:not(:has(.home-map)) .stats-empty { display: block; margin: 0 4px 24px; }
 .stats-title { margin-top: 20px; }
 /* Телефон: сторінки з нижньої панелі відкриваються з неї — кнопка «назад» зайва */
 @media (max-width: 720px) {
   body:is([data-tab="fav"], [data-tab="list"], [data-tab="settings"]) #app > .back { display: none; }
   body:is([data-tab="fav"], [data-tab="list"], [data-tab="settings"]) #app > .back + .page-title { margin-top: 20px; }
+}
+
+/* Статистика: «Кошик Жаби» */
+#statsLink svg { fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; }
+.brows { display: grid; gap: 4px; margin: 12px 0; }
+.brow {
+  display: grid; grid-template-columns: 6.5em minmax(40px, 1fr) auto 7.5em; align-items: center; gap: 12px;
+  width: 100%; padding: 8px 10px; border: 0; border-radius: 12px; background: transparent; text-align: left; color: var(--ink); cursor: pointer; font: inherit;
+}
+.brow:hover { background: var(--surface-2); }
+.brow.is-on { background: var(--accent-soft); }
+.brow .chain { margin: 0; }
+.brow__bar { height: 8px; border-radius: 99px; background: var(--surface-2); overflow: hidden; }
+.brow__bar i { display: block; height: 100%; border-radius: inherit; background: color-mix(in oklab, var(--accent) 70%, var(--surface)); }
+.brow.is-on .brow__bar i { background: var(--accent); }
+.brow__sum { font-variant-numeric: tabular-nums; white-space: nowrap; }
+.brow__d { font-size: 13px; font-weight: 600; color: var(--muted); white-space: nowrap; text-align: right; font-variant-numeric: tabular-nums; }
+.brow__d small { font-weight: 500; }
+#rising .up { color: var(--sale); }
+#rising .down { color: var(--good); }
+.brow__d.up { color: var(--sale); }
+.brow__d.down { color: var(--good); }
+.bdetail { border-top: 1px solid var(--line); padding-top: 14px; margin-top: 4px; }
+.bdetail h3, .rcols h3 { margin: 0 0 10px; font-size: 15px; }
+.bchart svg { display: block; width: 100%; height: 120px; }
+.bchart__line { fill: none; stroke: var(--accent); stroke-width: 2.5; stroke-linejoin: round; }
+.bchart__area { fill: color-mix(in oklab, var(--accent) 14%, transparent); stroke: none; }
+.bchart__ax { display: flex; justify-content: space-between; gap: 8px; font-size: 12px; color: var(--muted); margin-top: 4px; }
+.bitems { margin-top: 12px; }
+.bitems summary { cursor: pointer; font-weight: 600; color: var(--accent); padding: 6px 0; }
+.bitems__wrap { overflow-x: auto; }
+.bitems__t { width: 100%; border-collapse: collapse; font-size: 14px; }
+.bitems__t th, .bitems__t td { padding: 8px 6px; border-top: 1px solid var(--line); vertical-align: top; text-align: left; }
+.bitems__t th { font-weight: 600; white-space: nowrap; }
+.bitems__t small { display: block; color: var(--muted); font-weight: 500; font-size: 12px; margin-top: 2px; }
+.bitems__t a { color: var(--ink); text-decoration: none; }
+.bitems__t a:hover { color: var(--accent); }
+.bitems__t .num { text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.bitems__t tr.is-est td, .bitems__t tr.is-est th { color: var(--muted); }
+/* Статистика: «Що дорожчає найшвидше» */
+.rcols { display: grid; grid-template-columns: 1fr 1.3fr; gap: 24px; margin: 14px 0; }
+.rcat { display: grid; grid-template-columns: minmax(0, 1fr) 70px 4.2em; align-items: center; gap: 10px; padding: 6px 0; font-size: 14px; }
+.rcat__name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rcat__name small, .rtop small { color: var(--muted); }
+.rcat__bar { height: 6px; border-radius: 99px; background: var(--surface-2); overflow: hidden; }
+.rcat__bar i { display: block; height: 100%; border-radius: inherit; background: var(--sale); }
+.rcat__bar i.down { background: var(--good); }
+.rcat b { text-align: right; font-variant-numeric: tabular-nums; }
+.rtop { display: grid; grid-template-columns: minmax(0, 1fr) auto 3.4em; align-items: center; gap: 10px; padding: 7px 8px; margin: 0 -8px; border-radius: 10px; color: var(--ink); text-decoration: none; font-size: 14px; }
+.rtop:hover { background: var(--surface-2); }
+.rtop__name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rtop__p { color: var(--muted); white-space: nowrap; font-variant-numeric: tabular-nums; font-size: 13px; }
+.rtop__p b { color: var(--ink); }
+.rtop > b { text-align: right; font-variant-numeric: tabular-nums; }
+@media (max-width: 640px) {
+  .rcols { grid-template-columns: 1fr; gap: 16px; }
+  .brow { grid-template-columns: 5.6em minmax(30px, 1fr) auto; gap: 8px 10px; padding: 8px; }
+  .brow__d { grid-column: 2 / -1; text-align: left; margin-top: -4px; }
+  .brow__d:empty { display: none; }
+  .bitems__t { font-size: 13px; }
+  .bitems__t th { white-space: normal; }
+  .rtop { grid-template-columns: minmax(0, 1fr) 3.2em; }
+  .rtop__p { grid-column: 1; grid-row: 2; margin-top: -4px; }
+  .rtop > b { grid-row: 1 / 3; grid-column: 2; }
 }
