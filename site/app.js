@@ -852,6 +852,23 @@ const cartToggle = (p) =>
       : ''
   }</span>`;
 
+// Ціна в списку покупок: з карткою АТБ, якщо нижча, і «від N шт» (Сільпо, Фора, мережі zakaz.ua), якщо в списку
+// стільки штук. tag — що спрацювало: 'card' або N.
+function payPrice(p, q) {
+  let price = p.price;
+  let tag = null;
+  if (p.cardPrice > 0 && p.cardPrice < price) [price, tag] = [p.cardPrice, 'card'];
+  if (p.multi && p.unit !== 'кг' && q >= p.multi[0] && p.multi[1] < price) [price, tag] = [p.multi[1], p.multi[0]];
+  return { price, tag };
+}
+function payNote(p, q) {
+  const { price, tag } = payPrice(p, q);
+  const base = `${fmtPrice(price)} грн/${esc(p.unit)}`;
+  if (tag === 'card') return `${base} з карткою АТБ`;
+  if (tag) return `${base} — ціна від ${tag} шт`;
+  // Підказка: ще трохи — і діятиме ціна «від N шт».
+  return p.multi && p.unit !== 'кг' && p.multi[1] < p.price ? `${base} · від ${p.multi[0]} шт — ${fmtPrice(p.multi[1])}` : base;
+}
 let cartFrom = '#/';
 function renderCart() {
   document.querySelector('.top').classList.add('is-product');
@@ -859,14 +876,23 @@ function renderCart() {
   const ids = Object.keys(cart).map(Number);
   let html = `${backLink(cartFrom)}<h1 class="page-title">Список покупок</h1>`;
   if (!ids.length) {
-    app.innerHTML = `${html}<div class="empty"><b>🛍</b>Список порожній<br><span class="note">Натисніть кошик на картці товару — і тут з'явиться сума покупки та порівняння з іншими містами</span></div>`;
+    app.innerHTML = `${html}<div class="empty"><b>🛍</b>Список порожній<br><span class="note">Натисніть кошик на картці товару — і тут з'явиться сума покупки</span></div>${NY_SLOT}`;
+    renderNewYear();
     return;
   }
   const items = ids
     .map((id) => ({ id, c: cart[id], p: state.byId.get(id) }))
     .sort((a, b) => a.c.done - b.c.done || a.c.name.localeCompare(b.c.name, 'uk'));
+  // Товари мереж, чиїх каталогів ще не завантажено (напр. з новорічного кошика), — довантажуємо й перемальовуємо.
+  const needChains = [...new Set(items.filter((x) => !x.p).map((x) => x.c.chain || chainById(x.id)))].filter((ch) => !state.loaded.has(ch) && state.chains.includes(ch));
+  if (needChains.length) {
+    ensureChains(needChains).then(() => {
+      syncCart();
+      if (location.hash === '#/list') renderCart();
+    });
+  }
   const priced = items.filter((x) => x.p);
-  const sum = (list) => list.reduce((s, x) => s + x.p.price * x.c.q, 0);
+  const sum = (list) => list.reduce((s, x) => s + payPrice(x.p, x.c.q).price * x.c.q, 0);
   const total = sum(priced);
   const left = sum(priced.filter((x) => !x.c.done));
   const elsewhere = priced.filter((x) => x.p.from).length;
@@ -883,7 +909,7 @@ function renderCart() {
         <a href="#/p/${id}" class="cart-row__name">${esc(c.name)}</a>
         <span class="note">${
           p
-            ? `${fmtPrice(p.price)} грн/${esc(p.unit)}${p.oldPrice ? ' · акція' : ''}${p.until ? ` до ${fmtDate(parseDate(p.until), false)}` : ''}${p.from ? ` · ціна з міста ${esc(cityName(p.from))}` : ''}`
+            ? `${payNote(p, c.q)}${p.oldPrice ? ' · акція' : ''}${p.until ? ` до ${fmtDate(parseDate(p.until), false)}` : ''}${p.from ? ` · ціна з міста ${esc(cityName(p.from))}` : ''}`
             : chainId({ id, c }) === 'thrash'
               ? 'акція закінчилась або в місті немає «Траш!»'
               : 'немає в каталозі'
@@ -892,7 +918,7 @@ function renderCart() {
       <div class="cart-row__qty">
         <button data-qty="${id}" data-d="-1" aria-label="Менше">−</button><span>${fmtQty(c.q, c.unit)}</span><button data-qty="${id}" data-d="1" aria-label="Більше">+</button>
       </div>
-      <b class="cart-row__sum">${p ? fmtPrice(p.price * c.q) : '—'}</b>
+      <b class="cart-row__sum">${p ? fmtPrice(payPrice(p, c.q).price * c.q) : '—'}</b>
       <button class="cart-row__del" data-uncart="${id}" aria-label="Прибрати зі списку">×</button>
     </div>`;
   const notes = [
@@ -925,14 +951,155 @@ function renderCart() {
         ${items.some((x) => x.c.done) ? '<button id="cartClearDone">Прибрати куплене</button>' : ''}
         <button id="cartClear">Очистити список</button>
       </div>
-    </div>`;
+    </div>${NY_SLOT}`;
   // Зміна кількості перемальовує сторінку — лишаємось на тому самому місці.
   const y = scrollY;
   app.innerHTML = html;
   scrollTo(0, y);
+  renderNewYear();
+}
+
+// ---------- Новорічний кошик у списку покупок ----------
+// Набір продуктів до новорічного столу (data/stats/<місто>.json, scraper/stats.js): у кожній позиції — найдешевший
+// відповідний товар кожної мережі міста. Варіанти: усе в одній мережі, у двох або в усіх — що де купити й скільки
+// це заощадить; вибраний варіант додається в список покупок.
+const NY_SLOT = '<section class="panel ny" id="ny"></section>';
+let nyPick = 0; // вибраний варіант (індекс)
+let nyPlans = null;
+async function renderNewYear() {
+  const el = $('#ny');
+  if (!el) return;
+  const slug = state.city.slug;
+  const st = await loadCityStats(slug);
+  if (!el.isConnected || !st?.basket) return el.remove();
+  const own = (ch) => ch === 'atb' || (state.chainCities[ch] || []).some((x) => x.slug === slug && !x.from);
+  const chains = Object.keys(st.basket.chains).filter((ch) => (MULTI_CHAIN ? own(ch) : ch === 'atb'));
+  if (!chains.length) return el.remove();
+  const defs = st.basket.items;
+  // cost[ch][k] — вартість позиції k у мережі ch (Infinity, якщо такого товару в мережі немає).
+  const cost = Object.fromEntries(chains.map((ch) => [ch, st.basket.chains[ch].items.map((x, k) => (x[6] || !x[1] ? Infinity : x[5] * defs[k][3]))]));
+  // План для набору мереж: кожну позицію — там, де вона найдешевша.
+  const plan = (set) => {
+    const pick = defs.map((_, k) => set.reduce((best, ch) => (cost[ch][k] < (best ? cost[best][k] : Infinity) ? ch : best), null));
+    const covered = pick.filter(Boolean).length;
+    const total = pick.reduce((sum, ch, k) => sum + (ch ? cost[ch][k] : 0), 0);
+    return { set, pick, covered, total };
+  };
+  const better = (a, b) => b.covered - a.covered || a.total - b.total;
+  const singles = chains.map((ch) => plan([ch])).sort(better);
+  const plans = [{ label: 'Одна мережа', ...singles[0] }];
+  if (chains.length > 2) {
+    const pairs = [];
+    for (let i = 0; i < chains.length; i++) for (let j = i + 1; j < chains.length; j++) pairs.push(plan([chains[i], chains[j]]));
+    pairs.sort(better);
+    plans.push({ label: 'Дві мережі', ...pairs[0] });
+  }
+  if (chains.length > 1) plans.push({ label: chains.length > 2 ? 'Усі мережі' : 'Дві мережі', ...plan(chains) });
+  // Мережі, що в плані нічого не дають, прибираємо (план «усі» може обійтися меншою кількістю).
+  for (const p of plans) p.used = [...new Set(p.pick.filter(Boolean))];
+  nyPlans = plans;
+  if (nyPick >= plans.length) nyPick = 0;
+  const base = plans[0];
+  const tabs =
+    plans.length > 1
+      ? `<div class="seg ny__tabs" role="tablist">${plans
+          .map(
+            (p, i) => `<button type="button" data-ny="${i}" aria-pressed="${i === nyPick}">${p.label}<small>${grn(p.total)}${
+              i && base.total - p.total >= 1 && p.covered >= base.covered ? ` · −${grn(base.total - p.total)}` : ''
+            }</small></button>`,
+          )
+          .join('')}</div>`
+      : '';
+  const p = plans[nyPick];
+  const groups = p.used
+    .map((ch) => {
+      const ks = defs.map((_, k) => k).filter((k) => p.pick[k] === ch);
+      const sum = ks.reduce((a, k) => a + cost[ch][k], 0);
+      return `<div class="ny__group">
+        <div class="ny__ghead"><span class="chain chain--${ch}">${esc(CHAINS[ch])}</span><span class="note">${ks.length} ${plural(ks.length, 'позиція', 'позиції', 'позицій')}</span><b>${grn(sum)}</b></div>
+        <ul class="ny__list">${ks
+          .map((k) => {
+            const [, id, name, , , , , tag] = st.basket.chains[ch].items[k];
+            const badge = tag === 'card' ? '<small class="ny__tag ny__tag--card">з карткою</small>' : tag ? `<small class="ny__tag">від ${tag} шт</small>` : '';
+            return `<li><span>${esc(defs[k][1])}</span><a href="#/p/${id}">${esc(name)}</a><b>${grn(cost[ch][k])}${badge}</b></li>`;
+          })
+          .join('')}</ul>
+      </div>`;
+    })
+    .join('');
+  const miss = defs.filter((_, k) => !p.pick[k]).map((d) => d[1]);
+  // Страви: скільки коштує кожна у вибраному варіанті (інгредієнти — за ціною за одиницю там, де їх купуємо).
+  const keyIdx = new Map(defs.map((d, k) => [d[0], k]));
+  const dishes = (st.basket.dishes || [])
+    .map(([name, parts]) => {
+      const sum = parts.reduce((a, [key, q]) => {
+        const k = keyIdx.get(key);
+        const ch = p.pick[k];
+        return a + (ch ? (cost[ch][k] / defs[k][3]) * q : 0);
+      }, 0);
+      const what = parts.map(([key]) => defs[keyIdx.get(key)]?.[1]).filter(Boolean).join(', ');
+      return `<div class="ny__dish" title="${esc(what)}"><span>${esc(name)}</span><b>${grn(sum)}</b></div>`;
+    })
+    .join('');
+  const save = base.total - p.total;
+  const lead =
+    nyPick === 0
+      ? plans.length > 1
+        ? `Найдешевше все в одному магазині — у ${esc(CHAINS[p.used[0]])}: <b>${grn(p.total)}</b>.`
+        : `${esc(CHAINS[p.used[0]])}: <b>${grn(p.total)}</b>.`
+      : `${p.used.map((ch) => esc(CHAINS[ch])).join(' + ')}: <b>${grn(p.total)}</b>${save >= 1 ? ` — на <b>${grn(save)}</b> (${Math.round((save / base.total) * 100)}%) дешевше, ніж усе в ${esc(CHAINS[base.used[0]])}` : ''}.`;
+  el.innerHTML = `<div class="panel__head"><h2>🎄 Новорічний кошик</h2></div>
+    <p class="note">Продукти для основних страв новорічного столу на 4 людини: у кожній позиції — найдешевший відповідний товар мережі в місті ${esc(state.city.name)}, з акціями${MULTI_CHAIN ? ', ціною з карткою АТБ і ціною «від 2–3 шт», якщо стільки й треба' : ' і ціною з карткою АТБ'}.${plans.length > 1 ? ' Можна купити все в одному магазині або розділити між мережами — так дешевше.' : ''}</p>
+    ${tabs}
+    <p class="compare__summary">${lead}</p>
+    ${dishes ? `<h3 class="ny__h">Страви</h3><div class="ny__dishes">${dishes}</div><h3 class="ny__h">Що де купити</h3>` : ''}
+    <div class="ny__groups">${groups}</div>
+    ${miss.length ? `<p class="note">Немає в жодній мережі міста: ${esc(miss.join(', '))}.</p>` : ''}
+    <div class="cart-actions"><button type="button" class="btn ny__add" data-ny-add="${nyPick}">${BAG}Додати в список покупок</button></div>
+    <p class="note">Суми орієнтовні — за ціною за кг чи л у потрібній кількості; у список кладемо цілі упаковки. Ціни за ${fmtDate(parseDate(st.date))}.</p>`;
+}
+// Додає вибраний варіант новорічного кошика в список покупок (цілі упаковки, вагові — у кг).
+function addNewYear(i) {
+  const p = nyPlans?.[i];
+  if (!p) return 0;
+  let n = 0;
+  return loadCityStats(state.city.slug).then((st) => {
+    const defs = st.basket.items;
+    p.pick.forEach((ch, k) => {
+      if (!ch) return;
+      const [, id, name, , inPack] = st.basket.chains[ch].items[k];
+      const need = defs[k][3];
+      const prod = state.byId.get(id);
+      const unit = prod?.unit || (inPack === 1 && defs[k][2] === 'кг' ? 'кг' : 'шт');
+      const q = unit === 'кг' ? Math.max(0.1, Math.round(need * 10) / 10) : Math.max(1, Math.ceil(need / inPack - 0.15));
+      const old = cart[id];
+      cart[id] = { q: old ? Math.max(old.q, q) : q, done: false, name: prod?.name || name, img: prod?.img || '', unit, chain: ch };
+      n++;
+    });
+    saveCart();
+    return n;
+  });
 }
 
 function bindCart() {
+  app.addEventListener('click', async (e) => {
+    const ny = e.target.closest('[data-ny]');
+    if (ny) {
+      nyPick = Number(ny.dataset.ny);
+      return renderNewYear();
+    }
+    const add = e.target.closest('[data-ny-add]');
+    if (add) {
+      const n = await addNewYear(Number(add.dataset.nyAdd));
+      if (location.hash === '#/list') renderCart();
+      const b = $('.ny__add');
+      if (b && n) {
+        b.textContent = `✓ Додано ${n} ${plural(n, 'товар', 'товари', 'товарів')}`;
+        b.disabled = true;
+      }
+      return;
+    }
+  });
   app.addEventListener('click', (e) => {
     const t = e.target.closest('[data-cart], [data-qty], [data-uncart], #cartClear, #cartClearDone');
     if (!t) return;
@@ -1248,6 +1415,8 @@ function filtered() {
 // ---------- Список ----------
 
 // from — попередня ціна, яку показуємо поруч («↓ було 34,90»): на сторінках «Обране» і «Що змінилося».
+// «Від N шт»: дві упаковки.
+const MULTI_ICON = '<svg class="atbcard__icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="7" width="11" height="13" rx="2"/><path d="M8 7V5a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v11a2 2 0 0 1-2 2h-5"/></svg>';
 const CARD_ICON = '<svg class="atbcard__icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="2.5" y="5" width="19" height="14" rx="2.5"/><path d="M2.5 10h19M6.5 15h4"/></svg>';
 
 // extra — додаткова позначка (HTML) на початку рядка позначок.
@@ -1285,6 +1454,7 @@ function card(p, from, extra = '') {
         ${perHtml(p)}
       </div>
       ${p.cardPrice ? `<div class="atbcard" title="Ціна при оплаті карткою АТБ">${CARD_ICON}<b>${fmtPrice(p.cardPrice)}</b> з карткою</div>` : ''}
+      ${p.multi && p.multi[1] < p.price ? `<div class="atbcard atbcard--multi" title="Ціна за штуку при купівлі від ${p.multi[0]} шт">${MULTI_ICON}<b>${fmtPrice(p.multi[1])}</b> від ${p.multi[0]} шт</div>` : ''}
       <div class="card__flags">${extra}${flags}</div>
       ${p._view || p.from || !showTileVs() ? '' : vsTileHtml(p)}
     </div>
@@ -1758,9 +1928,72 @@ function renderStatsPage() {
   document.title = 'Статистика — Жаба';
   scrollTo(0, 0);
   app.innerHTML = `<h1 class="page-title stats-title">Статистика</h1>
+    <section class="panel" id="rising"><div class="sk" style="height:220px;border-radius:12px"></div></section>
     <section class="panel home-map" id="homeMap"><div class="sk" style="height:320px;border-radius:12px"></div></section>
-    <div class="empty stats-empty"><b>🗺️</b>Для мережі ${esc(CHAINS[state.chain] || '')} мапи рівня цін поки немає<br><span class="note">Ціни в усіх її містах однакові або ми збираємо лише одне місто</span></div>`;
+    <p class="note stats-empty">Мапи рівня цін для мережі ${esc(CHAINS[state.chain] || '')} поки немає: ціни в усіх її містах однакові або ми збираємо лише одне місто.</p>`;
   renderHomeMap($('#homeMap'));
+  renderCityStats();
+}
+
+// ---------- «Що дорожчає найшвидше» (і дані новорічного кошика) ----------
+// data/stats/<місто>.json (будує scraper/stats.js щоночі): новорічний кошик у кожній мережі міста (список покупок)
+// і зростання звичайних цін за до 30 днів.
+const statsCache = new Map();
+const loadCityStats = (slug) => {
+  if (!statsCache.has(slug)) statsCache.set(slug, fetch(`data/stats/${slug}.json`).then((r) => (r.ok ? r.json() : null)).catch(() => null));
+  return statsCache.get(slug);
+};
+const grn = (v) => `${Math.round(v).toLocaleString('uk')} грн`;
+const pctTxt = (v, digits = 1) => `${v > 0 ? '+' : v < 0 ? '−' : ''}${Math.abs(v).toFixed(digits).replace('.', ',')}%`;
+async function renderCityStats() {
+  const slug = state.city.slug;
+  const st = await loadCityStats(slug);
+  const rEl = $('#rising');
+  if (!rEl) return;
+  // Мережі міста з даними про зростання: на основному сайті — лише АТБ; у тесті — ті, чиї каталоги збираємо тут.
+  const own = (c) => c === 'atb' || (state.chainCities[c] || []).some((x) => x.slug === slug && !x.from);
+  const chains = Object.keys(st?.rising || {}).filter((c) => (MULTI_CHAIN ? own(c) : c === 'atb'));
+  if (!chains.length) {
+    rEl.innerHTML = `<div class="panel__head"><h2>Що дорожчає найшвидше</h2></div><p class="note">Історія цін у цьому місті ще коротка — порахуємо, щойно набереться тиждень.</p>`;
+    return;
+  }
+  let sel = chains.includes(state.chain) ? state.chain : chains[0];
+  const paint = () => {
+    const r = st.rising[sel];
+    const tabs =
+      chains.length > 1
+        ? `<div class="seg vs-tabs" role="tablist">${chains.map((c) => `<button type="button" data-rchain="${c}" aria-pressed="${c === sel}">${esc(CHAINS[c])}</button>`).join('')}</div>`
+        : '';
+    const maxC = Math.max(...r.cats.map((x) => Math.abs(x[1])), 0.1);
+    const cats = r.cats
+      .slice(0, 8)
+      .map(
+        ([name, v, n]) => `<div class="rcat"><span class="rcat__name">${esc(name)} <small>${n}</small></span>
+          <span class="rcat__bar"><i class="${v > 0 ? 'up' : 'down'}" style="width:${((Math.abs(v) / maxC) * 100).toFixed(1)}%"></i></span>
+          <b class="${v > 0.05 ? 'up' : v < -0.05 ? 'down' : ''}">${pctTxt(v)}</b></div>`,
+      )
+      .join('');
+    const top = r.top
+      .map(
+        ([id, name, a, b, v]) => `<a class="rtop" href="#/p/${id}"><span class="rtop__name">${esc(name)}</span>
+          <span class="rtop__p">${fmtPrice(a)} → <b>${fmtPrice(b)}</b></span><b class="up">${pctTxt(v, 0)}</b></a>`,
+      )
+      .join('');
+    rEl.innerHTML = `<div class="panel__head"><h2>Що дорожчає найшвидше${chains.length === 1 && MULTI_CHAIN ? ` <span class="chain chain--${sel}">${esc(CHAINS[sel])}</span>` : ''}</h2>${tabs}</div>
+      <p class="compare__summary">За ${r.days} ${plural(r.days, 'день', 'дні', 'днів')} (з ${fmtDate(parseDate(r.from))}) звичайні ціни ${esc(CHAINS[sel])} у місті ${esc(state.city.name)} змінилися в середньому на <b>${pctTxt(r.avg)}</b>: подорожчало ${r.up.toLocaleString('uk')} ${plural(r.up, 'товар', 'товари', 'товарів')}, подешевшало ${r.down.toLocaleString('uk')}.</p>
+      <div class="rcols">
+        <div><h3>Категорії</h3>${cats}</div>
+        <div><h3>Товари</h3>${top || '<p class="note">Нічого не подорожчало.</p>'}</div>
+      </div>
+      <p class="note">Звичайна ціна — без акцій: порівнюємо останню ціну не на акції сьогодні й ${fmtDate(parseDate(r.from), false)}. Категорія — середнє її товарів (від 8), поруч — скільки їх.</p>`;
+  };
+  rEl.addEventListener('click', (e) => {
+    const b = e.target.closest('[data-rchain]');
+    if (!b || b.dataset.rchain === sel) return;
+    sel = b.dataset.rchain;
+    paint();
+  });
+  paint();
 }
 
 function renderHome() {
@@ -2140,6 +2373,7 @@ async function renderProduct(id, slug) {
           ${p._per && showPer() ? `<span class="product__per">${fmtPrice(p._per.price)} грн за 1 ${p._per.unit}</span>` : ''}
         </div>
         ${p.cardPrice ? `<div class="atbcard atbcard--big">${CARD_ICON}<b>${fmtPrice(p.cardPrice)} грн</b> при оплаті карткою АТБ <span class="note">(−${pct(p.cardPrice, p.price)}%)</span></div>` : ''}
+        ${p.multi && p.multi[1] < p.price ? `<div class="atbcard atbcard--big atbcard--multi">${MULTI_ICON}<b>${fmtPrice(p.multi[1])} грн</b> за штуку при купівлі від ${p.multi[0]} шт <span class="note">(−${pct(p.multi[1], p.price)}%)</span></div>` : ''}
         ${honestBox(p)}
         <div id="warn"></div>
         <div class="product__actions"><span class="fav-actions">${favActions(p)}</span>${cartToggle(p)}<a class="btn btn--primary" href="${CHAIN_SITE[chainOf(p)][0]}${esc(p.url)}" target="_blank" rel="noopener">Відкрити на ${CHAIN_SITE[chainOf(p)][1]} ↗</a></div>
@@ -3193,9 +3427,12 @@ function route(e) {
   const onSettings = location.hash === '#/settings';
   if (onSettings) $('#settingsLink').setAttribute('aria-current', 'page');
   else $('#settingsLink').removeAttribute('aria-current');
+  if (location.hash === '#/stats') $('#statsLink').setAttribute('aria-current', 'page');
+  else $('#statsLink').removeAttribute('aria-current');
   const onCart = location.hash === '#/list';
   const onStats = location.hash === '#/stats';
   const tab = onFavs ? 'fav' : onCart ? 'list' : onStats ? 'stats' : onSettings ? 'settings' : isHome() || location.hash.startsWith('#/today') ? 'home' : '';
+  document.body.dataset.tab = tab; // на телефоні сторінки з нижньої панелі — без кнопки «назад» (style.css)
   for (const a of document.querySelectorAll('#tabbar a')) {
     if (a.dataset.tab === tab) a.setAttribute('aria-current', 'page');
     else a.removeAttribute('aria-current');
